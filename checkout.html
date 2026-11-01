@@ -2545,6 +2545,8 @@ function ckComplete(rec){
     items: rec.items, pricing: rec.pricing, total: rec.total, payment: rec.payment, createdAt: rec.createdAt
   };
   safeSession.setItem(CK_LAST_KEY, JSON.stringify(summary));    /* this tab only: lets the Thank You screen survive a refresh and pre-fills tracking */
+  try { localStorage.setItem('nikora_has_purchased', '1'); } catch (e) {}      /* the NIKORA Rabbit starts pinned and quiet for returning buyers */
+  try { window.dispatchEvent(new CustomEvent('nikora:order-complete', { detail: { orderId: rec.orderId } })); } catch (e) {}
   saveCart([]);
   safeStorage.setItem('nikora_promo', '');
   var badge = ckEl('cart-count'); if(badge) badge.textContent = '0';
