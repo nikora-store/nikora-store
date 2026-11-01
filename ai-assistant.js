@@ -28,7 +28,13 @@
  *   products added in the admin panel are picked up automatically. The system prompt sent to a live endpoint
  *   is built from the same data.
  *
- * Public API: window.NikoraAssistant = { open, close, toggle, send, reset, ask, refreshProducts, systemPrompt }
+ * Public API: window.NikoraAssistant = { open, close, toggle, send, reset, ask, speak, profile, refreshProducts, systemPrompt }
+ *
+ * NIKORA RABBIT (mascot.js)
+ *   speak({ kind:'tip'|'answer'|'reassure', question?, page? })  -> Promise<{ text, href?, hrefLabel?, ask?, more?, source:'live'|'local' } | null>
+ *   writes the mascot's one-line speech from the SAME brain as the chat: the live endpoint when configured, else the local engine, always using
+ *   the customer's earlier chat messages and remembered skin profile. It never adds anything to the chat window. Every customer message is also
+ *   passed to NKMascot.learn() so the mascot remembers skin type and concerns; the chat fires nikora:assistant-open / nikora:assistant-close.
  * All CSS is namespaced .nkai-* so it cannot clash with page styles.
  */
 (function () {
@@ -452,6 +458,7 @@
   }
   function nameOf(id) { var c = catalog().filter(function (e) { return e.kb && e.kb.ids.indexOf(id) !== -1; })[0]; return c ? c.name : ''; }
   function routineAnswer(t) {
+    t = t + profileWords(t);
     var oily = /\b(oily|acne|breakout|blemish|pimple|sensitive|redness|irritat|combination)\b/.test(t);
     var dry = /\b(dry|dehydrat|tight|flaky|barrier|dull|mature|aging|ageing|wrinkle|fine line)\b/.test(t);
     var head, am, pm;
@@ -520,7 +527,7 @@
       'GUIDANCE RULES: When asked about a product, ingredient or routine, answer directly and concisely: key benefits, then how it synergizes with the wand (conductive layer, absorption, step order), then how to use it. Routine order: Prep (toner), Infuse (essence/ampoule), Activate (wand ~5 min, evening, never over sunscreen), Seal (cream), SPF in the morning. Link products with [name](product.html?id=ID).',
       'CLAIMS: cosmetic wording only. Never diagnose or give medical claims; say "results vary" and suggest a patch test. For pregnancy, pacemakers or implants, or skin conditions, advise checking with a doctor before using EMS.',
       'STORE FACTS: 30-Day Money-Back Guarantee (unopened/unused items; change-of-mind return shipping paid by the customer); processing 1-3 business days, shipping 7-15 business days with tracking; visible results usually appear within 30-45 days of consistent daily use. You cannot look up or change orders.',
-      'SUPPORT: only hand off to nikora.support@gmail.com (Mon-Sun 8am-10pm EST, replies in 2-4 business hours) for order-specific, payment or account issues you cannot resolve, never for product or routine questions.'].join('\n');
+      'SUPPORT: only hand off to nikora.support@gmail.com (Mon-Sun 8am-10pm EST, replies in 2-4 business hours) for order-specific, payment or account issues you cannot resolve, never for product or routine questions.'].concat(profileLine() ? [profileLine()] : []).join('\n');
   }
 
   var FALLBACK = {
@@ -591,14 +598,14 @@
   /* ======================================================================
    * 5. OPTIONAL LIVE ENDPOINT (your own proxy; falls back to the local engine)
    * ====================================================================== */
-  function askRemote(history) {
+  function askRemote(history, extraSystem) {
     var url = endpoint();
     if (!url || typeof fetch !== 'function') return Promise.resolve(null);
     var ctl = window.AbortController ? new AbortController() : null;
     var timer = setTimeout(function () { if (ctl) ctl.abort(); }, CFG.timeoutMs);
     var payload = {
       page: location.pathname,
-      system: systemPrompt(),
+      system: systemPrompt() + (extraSystem ? '\n' + extraSystem : ''),
       messages: history.slice(-12).map(function (m) { return { role: m.r === 'u' ? 'user' : 'assistant', content: m.t }; })
     };
     return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: ctl ? ctl.signal : undefined })
@@ -608,6 +615,99 @@
         return (typeof txt === 'string' && txt.trim()) ? txt.trim().slice(0, 2500) : null;
       })
       .catch(function () { clearTimeout(timer); return null; });
+  }
+
+  /* ======================================================================
+   * 5b. MASCOT VOICE  (NikoraAssistant.speak: short live lines for the NIKORA Rabbit speech bubble, see mascot.js)
+   * ====================================================================== */
+  var REASSURE = [
+    'Your card details go straight to Stripe\u2019s secure payment form, never into NIKORA\u2019s own fields.',
+    'Every order is covered by our 30-Day Money-Back Guarantee on unopened, unused items.',
+    'Free Express Shipping on every order, with a tracking link once it ships.',
+    'Processing takes 1\u20133 business days, then 7\u201315 business days in transit.',
+    'Questions about your order? Our team replies within 2\u20134 business hours.'
+  ];
+  var MASCOT_RULES = 'MASCOT MODE: you are speaking through the small speech bubble of the NIKORA Rabbit mascot. Reply with at most two short, warm sentences (under 220 characters), plain text only (no markdown, lists or links), cosmetic wording only, no medical claims, never invent prices, stock or order details.';
+  var speakCache = {}, lastRemoteAt = 0;
+
+  function profile() { try { return (window.NKMascot && NKMascot.getProfile && NKMascot.getProfile()) || null; } catch (e) { return null; } }
+  function profileText(p) {
+    p = p || profile(); if (!p) return '';
+    var a = [];
+    if (p.skinTypes && p.skinTypes.length) a.push('skin type: ' + p.skinTypes.join(', '));
+    if (p.concerns && p.concerns.length) a.push('concerns: ' + p.concerns.join(', '));
+    return a.join('; ');
+  }
+  function profileLine() { var t = profileText(); return t ? 'CUSTOMER PROFILE (remembered in this browser from earlier chat; use it to personalise, cosmetic wording only): ' + t + '.' : ''; }
+  function profileWords(t) {                                /* only fills a gap: when the message itself names no skin type or concern */
+    var p = profile(); if (!p || /\b(oily|dry|sensitive|acne|combination|dull|aging|ageing|barrier|dehydrat)\b/.test(t)) return '';
+    return ' ' + (p.skinTypes || []).join(' ') + ' ' + (p.concerns || []).join(' ').toLowerCase();
+  }
+  function welcomeBack() { var t = profileSpeech(); return t ? '\n\nWelcome back. I still have your notes: ' + t + '. Want a routine tuned to that?' : ''; }
+
+  function plain(s) { return String(s || '').replace(/\*\*/g, '').replace(/^\s*[-\u2022]\s*/gm, '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\s+/g, ' ').trim(); }
+  function firstSentence(s, max) {
+    s = plain(s); var m = /^(.{25,}?[.!?])(\s|$)/.exec(s), out = m ? m[1] : s;
+    return out.length > max ? out.slice(0, max).replace(/\s+\S*$/, '') + '\u2026' : out;
+  }
+  function lastUserText() { for (var i = state.msgs.length - 1; i >= 0; i--) if (state.msgs[i].r === 'u') return state.msgs[i].t; return ''; }
+  function pageProductId() { if (!/product/i.test(location.pathname)) return ''; var m = /[?&]id=([^&#]+)/.exec(location.search); return m ? decodeURIComponent(m[1]) : ''; }
+  function entryById(id) { return catalog().filter(function (e) { return String(e.id) === String(id) || (e.kb && e.kb.ids.indexOf(String(id)) !== -1); })[0] || null; }
+  function entryLine(e) {
+    var kb = e.kb, lp = e.live, name = (kb && kb.short) || e.name;
+    if (kb && kb.step) return name + ' is your ' + kb.step + ' step. ' + firstSentence(kb.usage, 150);
+    if (kb) return name + ': ' + firstSentence(kb.about, 170);
+    return name + ': ' + firstSentence((lp && lp.desc) || 'A favorite from the NIKORA collection.', 170);
+  }
+  function answerLine(e, q) {                               /* "what does X do" -> its benefit; "how do I use X" -> its step and usage */
+    var kb = e.kb, name = (kb && kb.short) || e.name;
+    return (kb && /\b(how|use|apply|routine|order|step|often)\b/i.test(q)) || !kb ? entryLine(e) : name + ': ' + firstSentence(kb.about, 190);
+  }
+  function profileSpeech(p) {                               /* "dry and sensitive skin, with hydration and barrier repair goals" */
+    p = p || profile(); if (!p) return '';
+    var a = [];
+    if (p.skinTypes && p.skinTypes.length) a.push(p.skinTypes.join(' and ') + ' skin');
+    if (p.concerns && p.concerns.length) a.push((a.length ? 'with ' : '') + p.concerns.join(' and ').toLowerCase() + ' goals');
+    return a.join(', ');
+  }
+  function speakLocal(o) {
+    var kind = o.kind || 'tip';
+    if (kind === 'reassure') return { text: REASSURE[(Number(o.i) || 0) % REASSURE.length], source: 'local' };
+    if (kind === 'answer') {
+      var q = String(o.question || ''), pe = findProduct(norm(q), false);
+      if (pe) return { text: answerLine(pe, q), href: 'product.html?id=' + encodeURIComponent(pe.id), hrefLabel: 'View product', source: 'local', more: true };
+      var saved = lastIntent, a;
+      try { a = localAnswer(q); } finally { lastIntent = saved; }           /* answering for the mascot must not change the chat's own topic memory */
+      var b = a.buttons && a.buttons[0];
+      return { text: firstSentence(String(a.text || '').split(/\n\n/)[0], 220), href: b && b.href, hrefLabel: b && b.label, source: 'local', more: true };
+    }
+    var pid = pageProductId(), cur = pid ? entryById(pid) : null;           /* tip: this product, else the product from earlier chat, else the remembered profile */
+    if (cur) return { text: entryLine(cur), source: 'local' };
+    var lu = lastUserText(), pe2 = lu ? findProduct(norm(lu), false) : null;
+    if (pe2) return { text: 'Still thinking about ' + ((pe2.kb && pe2.kb.short) || pe2.name) + '? ' + firstSentence(pe2.kb ? pe2.kb.about : ((pe2.live && pe2.live.desc) || ''), 170), href: 'product.html?id=' + encodeURIComponent(pe2.id), hrefLabel: 'View it', source: 'local' };
+    var pt = profileSpeech();
+    if (pt) return { text: 'I remember your ' + pt + '. Ask me for a routine built around that.', ask: true, source: 'local' };
+    return null;
+  }
+  function speak(o) {
+    o = o || {}; var kind = o.kind || 'tip', now = Date.now();
+    var key = kind + '|' + (o.question || '') + '|' + (o.i || 0) + '|' + location.pathname + '|' + state.msgs.length;
+    if (speakCache[key] && now - speakCache[key].at < 60000) return Promise.resolve(speakCache[key].v);
+    function done(v) { speakCache[key] = { at: Date.now(), v: v }; return v; }
+    return loadProducts().then(function () {
+      var local = speakLocal(o);
+      if (!endpoint() || kind === 'reassure' || (kind !== 'answer' && now - lastRemoteAt < 15000)) return done(local);   /* reassurance stays factual: local only */
+      lastRemoteAt = now;
+      var directive = kind === 'answer'
+        ? '[Mascot] The customer asked the NIKORA Rabbit mascot: "' + String(o.question || '').slice(0, 200) + '". Answer briefly.'
+        : '[Mascot] Write ONE helpful, friendly tip for a customer who has been idle for a moment on the page ' + location.pathname + '. Use the conversation and the customer profile if relevant.';
+      var hist = state.msgs.slice(-6).concat([{ r: 'u', t: directive }]);
+      return askRemote(hist, MASCOT_RULES).then(function (txt) {
+        if (!txt) return done(local);
+        var t = plain(txt); if (t.length > 220) t = firstSentence(t, 220);
+        return done({ text: t, source: 'live', more: kind === 'answer', href: local && local.href, hrefLabel: local && local.hrefLabel });
+      });
+    }).catch(function () { return null; });
   }
 
   /* ======================================================================
@@ -898,13 +998,14 @@
 
   /* ---- conversation ---- */
   function welcome() {
-    addMsg('b', "Hello, and welcome to NIKORA. I'm your virtual beauty concierge. I can help with your device routine, order tracking, returns and our 30-day guarantee.\n\nWhat would you like to know?", [], false);
+    addMsg('b', "Hello, and welcome to NIKORA. I'm your virtual beauty concierge. I can help with your device routine, order tracking, returns and our 30-day guarantee.\n\nWhat would you like to know?" + welcomeBack(), [], false);
     setChips(DEFAULT_CHIPS);
   }
   function send(text) {
     text = String(text || '').replace(/\s+/g, ' ').trim();
     if (!text || busy) return;
     if (text.length > 500) text = text.slice(0, 500);
+    try { if (window.NKMascot && typeof NKMascot.learn === 'function') NKMascot.learn(text); } catch (e) {}      /* remember skin type / concerns (this browser only) */
     if (!state.open) open();
     addMsg('u', text);
     input.value = '';
@@ -930,6 +1031,7 @@
   /* ---- open / close ---- */
   function open(opts) {
     state.open = true;
+    try { window.dispatchEvent(new CustomEvent('nikora:assistant-open')); } catch (e) {}
     root.setAttribute('data-open', 'true'); panel.setAttribute('aria-hidden', 'false');
     fab.setAttribute('aria-expanded', 'true'); fab.setAttribute('aria-label', 'Close ' + CFG.title + ' chat');
     hideNudge(true);
@@ -938,6 +1040,7 @@
   }
   function close(returnFocus) {
     state.open = false;
+    try { window.dispatchEvent(new CustomEvent('nikora:assistant-close')); } catch (e) {}
     root.setAttribute('data-open', 'false'); panel.setAttribute('aria-hidden', 'true');
     fab.setAttribute('aria-expanded', 'false'); fab.setAttribute('aria-label', 'Open ' + CFG.title + ' chat');
     save();
@@ -999,6 +1102,7 @@
     send: send, reset: reset,
     ask: function (q) { return localAnswer(q); },           /* returns { text, buttons, chips } without touching the UI */
     refreshProducts: function () { return loadProducts(true); },
+    speak: speak, profile: profile,
     systemPrompt: systemPrompt
   };
 
