@@ -46,6 +46,7 @@
    * ====================================================================== */
   var CONFIG = {
     logoHref: 'index.html',
+    mascotRoam: true,                                 // false = the rabbit starts pinned in the corner instead of roaming (visitors can still toggle the pin)
     mascotWidget: true,                               // floating NIKORA Rabbit companion in the bottom corner (mascot.js); false = no widget (empty states and tips still work)
     logoWordmark: true,                               // show the "NIKORA" wordmark next to the bunny (false = bunny only)
     breakpoint: 1180,                                 // px: below this the burger + drawer replace the bar
@@ -804,7 +805,9 @@
   }
   /* the NIKORA Rabbit UI guide (tips, empty states): stand-alone file in the same folder as nav.js */
   function loadMascot() {
-    if (CONFIG.mascotWidget === false) { window.NK_MASCOT = window.NK_MASCOT || {}; window.NK_MASCOT.widget = false; }
+    window.NK_MASCOT = window.NK_MASCOT || {};
+    if (CONFIG.mascotWidget === false) window.NK_MASCOT.widget = false;
+    if (CONFIG.mascotRoam === false && window.NK_MASCOT.roam == null) window.NK_MASCOT.roam = false;
     if (window.NKMascot || document.getElementById('nk-mascot-loader') || document.querySelector('script[src*="mascot.js"]')) return;
     var base = SELF_SRC ? SELF_SRC.replace(/[^\\/?#]*([?#].*)?$/, '') : '';
     var el = document.createElement('script');
@@ -813,7 +816,6 @@
   }
   /* Opens the chat; if the widget is still loading (or not requested yet) it waits for it. */
   window.openAiAssistant = function () {
-    try { window.dispatchEvent(new CustomEvent('nikora:assistant-open')); } catch (e) {}       /* the mascot closes its bubble / popup */
     if (window.NikoraAssistant) { window.NikoraAssistant.open(); return; }
     loadAssistant();
     var tries = 0, timer = setInterval(function () {
