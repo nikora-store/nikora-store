@@ -28,7 +28,7 @@
  *   products added in the admin panel are picked up automatically. The system prompt sent to a live endpoint
  *   is built from the same data.
  *
- * Public API: window.NikoraAssistant = { open, close, toggle, send, reset, ask, speak, profile, refreshProducts, systemPrompt }
+ * Public API: window.NikoraAssistant = { open, close, toggle, send, reset, ask, speak, profile, vocab, refreshProducts, systemPrompt }
  *
  * NIKORA RABBIT (mascot.js)
  *   speak({ kind:'tip'|'answer'|'reassure', question?, page? })  -> Promise<{ text, href?, hrefLabel?, ask?, more?, source:'live'|'local' } | null>
@@ -366,7 +366,8 @@
       if (!name || !(price > 0)) return;
       var img = (Array.isArray(p.images) && p.images[0]) || p.img || p.image || '';
       out.push({ id: String(p.id != null ? p.id : k), name: String(name), brand: p.brand ? String(p.brand) : '', category: p.category ? String(p.category) : '',
-        price: price, desc: String(p.desc || p.description || ''), tags: [].concat(p.tags || []).map(String), img: String(img) });
+        price: price, desc: String(p.desc || p.description || ''), tags: [].concat(p.tags || []).map(String), img: String(img),
+        actives: [].concat(p.actives || p.keyIngredients || p.ingredients || p.keyActives || []).map(String) });
     });
     return out;
   }
@@ -630,15 +631,69 @@
   var MASCOT_RULES = 'MASCOT MODE: you are speaking through the small speech bubble of the NIKORA Rabbit mascot. Reply with at most two short, warm sentences (under 220 characters), plain text only (no markdown, lists or links), cosmetic wording only, no medical claims, never invent prices, stock or order details.';
   var speakCache = {}, lastRemoteAt = 0;
 
+  /* ---- ingredient vocabulary: built from the LIVE catalog every time it is asked, so products added in the admin panel are understood automatically ---- */
+  var LEX = ['niacinamide', 'hyaluronic acid', 'ceramide', 'retinol', 'vitamin c', 'centella', 'snail mucin', 'heartleaf', 'birch', 'collagen', 'peptide', 'panthenol', 'squalane',
+    'salicylic acid', 'glycolic acid', 'lactic acid', 'azelaic acid', 'propolis', 'mugwort', 'green tea', 'tea tree', 'aloe', 'madecassoside', 'adenosine', 'allantoin', 'ginseng', 'zinc'];
+  function activeTerms(s) {
+    return String(s || '').toLowerCase().replace(/\([^)]*\)/g, ' ').split(/,|\+|\band\b|\/|;/).map(function (t) {
+      return t.replace(/\b(extract|ampoule|essence|juice|filtrate|water|oil|serum|cream|\d+%?)\b/g, ' ').replace(/\s+/g, ' ').trim();
+    }).filter(function (t) { return t.length >= 3 && t.length <= 40 && /^[a-z][a-z0-9 \-]*$/.test(t) && !/\b(treatment|mask|hydrogel|device|wand|light|microcurrents?|led|cooling|globe|sunscreen|spf|lip|overnight)\b/.test(t); });
+  }
+  /** [{ term, ids[] }]: ingredient / active terms with the product ids that feature them (key actives, the optional `actives` field, and lexicon words found in descriptions). */
+  function vocab() {
+    var map = {};
+    function add(term, id) {
+      term = String(term || '').toLowerCase().trim(); if (!term) return;
+      var v = map[term] || (map[term] = { term: term, ids: [] });
+      if (id != null && v.ids.indexOf(String(id)) < 0) v.ids.push(String(id));
+    }
+    catalog().forEach(function (e) {
+      var live = e.live || {}, kb = e.kb || {}, acts = live.actives || [];
+      var txt = [live.desc, kb.about, kb.active].concat(acts).join(' ');
+      if (kb.active) activeTerms(kb.active).forEach(function (t) { add(t, e.id); });
+      acts.forEach(function (a) { activeTerms(a).forEach(function (t) { add(t, e.id); }); });
+      LEX.forEach(function (l) { if (new RegExp('\\b' + escRe(l) + '\\b', 'i').test(txt)) add(l, e.id); });
+    });
+    LEX.forEach(function (l) { add(l); });
+    return Object.keys(map).map(function (k) { return map[k]; });
+  }
+  /* optional language-model curation: ONE extra, small request per useful message when a live endpoint is configured.
+     The answer is only a suggestion: NKMascot.setProfile() validates every value against its fixed lists and the live vocabulary. */
+  var curating = false, lastCurateAt = 0;
+  function curateRemote(text) {
+    var url = endpoint(), M = window.NKMascot;
+    if (!url || !M || typeof M.looksUseful !== 'function' || typeof M.allowed !== 'function' || typeof fetch !== 'function') return;
+    if (window.NIKORA_AI_CONFIG && window.NIKORA_AI_CONFIG.curate === false) return;
+    if (curating || Date.now() - lastCurateAt < 8000 || !M.looksUseful(text)) return;
+    curating = true; lastCurateAt = Date.now();
+    var al = M.allowed();
+    var clean = String(text).replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, ' ').replace(/\b(nk|ret)[-\s]?\d{3,}\b/gi, ' ').replace(/\+?\d[\d\s().-]{7,}\d/g, ' ').slice(0, 400);
+    var sys = 'CURATION TASK (not a chat reply). Read the customer message and answer with ONLY a JSON object {"skinTypes":[],"concerns":[],"ingredients":[],"avoid":[],"prefs":[]}. ' +
+      'Use ONLY these allowed values. skinTypes: ' + al.skinTypes.join(', ') + '. concerns: ' + al.concerns.join(', ') + '. prefs: ' + al.prefs.join(', ') +
+      '. ingredients (things they are interested in): ' + al.ingredients.join(', ') + '. avoid (things they want to avoid): ' + al.avoid.join(', ') +
+      '. Include a value only when the customer states it about themselves or asks for / avoids it. Ignore small talk, orders, shipping, payments, contact details and anything about health conditions, pregnancy, allergies or medication. Return {} when nothing qualifies. No prose.';
+    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: location.pathname, system: sys, messages: [{ role: 'user', content: clean }] }) })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        var txt = d && (d.reply || d.text || (d.content && d.content[0] && d.content[0].text)), m = typeof txt === 'string' && /\{[\s\S]*\}/.exec(txt);
+        if (m) M.setProfile(JSON.parse(m[0]));
+      })
+      .catch(function () {})
+      .then(function () { curating = false; });
+  }
+
   function profile() { try { return (window.NKMascot && NKMascot.getProfile && NKMascot.getProfile()) || null; } catch (e) { return null; } }
   function profileText(p) {
     p = p || profile(); if (!p) return '';
     var a = [];
     if (p.skinTypes && p.skinTypes.length) a.push('skin type: ' + p.skinTypes.join(', '));
     if (p.concerns && p.concerns.length) a.push('concerns: ' + p.concerns.join(', '));
+    if (p.ingredients && p.ingredients.length) a.push('interested in: ' + p.ingredients.join(', '));
+    if (p.avoid && p.avoid.length) a.push('wants to avoid: ' + p.avoid.join(', '));
+    if (p.prefs && p.prefs.length) a.push('prefers: ' + p.prefs.join(', '));
     return a.join('; ');
   }
-  function profileLine() { var t = profileText(); return t ? 'CUSTOMER PROFILE (remembered in this browser from earlier chat; use it to personalise, cosmetic wording only): ' + t + '.' : ''; }
+  function profileLine() { var t = profileText(); return t ? 'CUSTOMER PROFILE (remembered in this browser from earlier chat; use it to personalise, cosmetic wording only; never recommend or praise a product that mentions something the customer wants to avoid): ' + t + '.' : ''; }
   function profileWords(t) {                                /* only fills a gap: when the message itself names no skin type or concern */
     var p = profile(); if (!p || /\b(oily|dry|sensitive|acne|combination|dull|aging|ageing|barrier|dehydrat)\b/.test(t)) return '';
     return ' ' + (p.skinTypes || []).join(' ') + ' ' + (p.concerns || []).join(' ').toLowerCase();
@@ -668,6 +723,8 @@
     var a = [];
     if (p.skinTypes && p.skinTypes.length) a.push(p.skinTypes.join(' and ') + ' skin');
     if (p.concerns && p.concerns.length) a.push((a.length ? 'with ' : '') + p.concerns.join(' and ').toLowerCase() + ' goals');
+    if (p.ingredients && p.ingredients.length) a.push('an interest in ' + p.ingredients.slice(0, 2).join(' and '));
+    if (p.avoid && p.avoid.length) a.push('a wish to avoid ' + p.avoid.slice(0, 2).join(' and '));
     return a.join(', ');
   }
   function speakLocal(o) {
@@ -1005,7 +1062,7 @@
     text = String(text || '').replace(/\s+/g, ' ').trim();
     if (!text || busy) return;
     if (text.length > 500) text = text.slice(0, 500);
-    try { if (window.NKMascot && typeof NKMascot.learn === 'function') NKMascot.learn(text); } catch (e) {}      /* remember skin type / concerns (this browser only) */
+    try { if (window.NKMascot && typeof NKMascot.learn === 'function') NKMascot.learn(text); curateRemote(text); } catch (e) {}      /* remember what is worth keeping (this browser only) */
     if (!state.open) open();
     addMsg('u', text);
     input.value = '';
@@ -1102,7 +1159,7 @@
     send: send, reset: reset,
     ask: function (q) { return localAnswer(q); },           /* returns { text, buttons, chips } without touching the UI */
     refreshProducts: function () { return loadProducts(true); },
-    speak: speak, profile: profile,
+    speak: speak, profile: profile, vocab: vocab,
     systemPrompt: systemPrompt
   };
 
