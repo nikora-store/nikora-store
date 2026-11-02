@@ -46,6 +46,7 @@
    * ====================================================================== */
   var CONFIG = {
     logoHref: 'index.html',
+    mascotAutoStatic: true,                           // true = visitors who already bought (localStorage nikora_has_purchased) start with the rabbit pinned and quiet; they can unpin anytime
     mascotRoam: true,                                 // false = the rabbit starts pinned in the corner instead of roaming (visitors can still toggle the pin)
     mascotWidget: true,                               // floating NIKORA Rabbit companion in the bottom corner (mascot.js); false = no widget (empty states and tips still work)
     logoWordmark: true,                               // show the "NIKORA" wordmark next to the bunny (false = bunny only)
@@ -391,7 +392,7 @@
         '<nav class="nkn-primary" aria-label="Primary">' + links + '<span class=\"nkn-ind-track\" aria-hidden=\"true\"><span class=\"nkn-ind\"></span></span></nav>' +
         '<div class="nkn-actions">' +
           themePill('') +
-          '<button type="button" class="nkn-btn" id="open-cart-btn" aria-label="Open cart">' + ico('cart') + '<span class="nkn-badge" id="cart-count">0</span></button>' +
+          '<button type="button" class="nkn-btn" id="open-cart-btn" data-nk-point="cart" aria-label="Open cart">' + ico('cart') + '<span class="nkn-badge" id="cart-count">0</span></button>' +
           '<button type="button" class="nkn-btn nkn-burger" id="mobile-menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu-drawer">' + ico('burger') + '</button>' +
         '</div>' +
       '</div>' +
@@ -808,6 +809,7 @@
     window.NK_MASCOT = window.NK_MASCOT || {};
     if (CONFIG.mascotWidget === false) window.NK_MASCOT.widget = false;
     if (CONFIG.mascotRoam === false && window.NK_MASCOT.roam == null) window.NK_MASCOT.roam = false;
+    if (CONFIG.mascotAutoStatic === false && window.NK_MASCOT.autoStatic == null) window.NK_MASCOT.autoStatic = false;
     if (window.NKMascot || document.getElementById('nk-mascot-loader') || document.querySelector('script[src*="mascot.js"]')) return;
     var base = SELF_SRC ? SELF_SRC.replace(/[^\\/?#]*([?#].*)?$/, '') : '';
     var el = document.createElement('script');
