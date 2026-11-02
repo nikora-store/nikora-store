@@ -24,6 +24,10 @@
  *               (saved in localStorage 'nikora_mascot_pinned'). At checkout it is always docked in the corner so it never sits over the payment form.
  *   Speech     idle tips, answers to the popup's ask box and checkout reassurance come from NikoraAssistant.speak() (ai-assistant.js: the live endpoint when
  *               configured, else the local engine, using the customer's chat history + remembered profile); built-in lines are only the fallback.
+ *   Theme      light: obsidian body, gold #C89B54 outline, cream face. dark: cream-gold body, crisp obsidian face. Pure CSS on <html data-theme>, so it flips with the toggle.
+ *   Autonomy   every 14-26 s it hops, wiggles, or points (head turn + gold arrow + a line) at the cart or the Bestsellers; emotions (cart joy, lab goggles, surprise) are 0 ms.
+ *   Returning buyers start PINNED when localStorage 'nikora_has_purchased' is set (checkout.html sets it and fires 'nikora:order-complete'); an explicit pin choice always wins.
+ *   Memory     a curation filter keeps only skin type, concerns, ingredients, avoid-list and preferences (see section 5a); NKMascot.curate(text) shows what it would keep.
  *   Layer      z-index 999999 so it stays crisp above cart drawers, modals and their blurred backdrops.
  *   Motion      gentle float + breathing, ear wiggles, eye blinks (all off for prefers-reduced-motion; paused while the tab is hidden).
  *   Reactions   joyful bounce when the bag count really goes up; "Lab Specialist" goggles + sparkles while the pointer is on a key ingredient
@@ -172,7 +176,7 @@
 
   /* ====================================================================== 5. LIVE COMPANION (floating widget, reactions, memory) ====================================================================== */
   var CFG = (function () {
-    var d = { widget: true, side: 'left', idleMs: 15000, maxNudges: 3, hideOn: [], roam: true }, u = window.NK_MASCOT || {}, k;
+    var d = { widget: true, side: 'left', idleMs: 15000, maxNudges: 3, hideOn: [], roam: true, autoStatic: true }, u = window.NK_MASCOT || {}, k;
     for (k in u) if (Object.prototype.hasOwnProperty.call(u, k)) d[k] = u[k];
     return d;
   })();
@@ -186,21 +190,46 @@
   }
   var LS = store('localStorage'), SS = store('sessionStorage');
 
-  /* ---------- 5a. customer profile (skin type + concerns), kept in this browser only ----------
-     Written by learn() / setProfile() (the Beauty Concierge calls them), read by every page. Key: localStorage 'nikora_profile'
-     { v:1, skinTypes:['dry','sensitive'], concerns:['Barrier Repair'], updatedAt }. Nothing is sent anywhere by this file. */
-  var PROFILE_KEY = 'nikora_profile';
+  /* ---------- 5a. customer profile + CURATION FILTER (skin type, concerns, ingredients, avoid-list, preferences) ----------
+     Kept in this browser only (localStorage 'nikora_profile', v2). Only controlled vocabulary is ever stored, never the customer's raw words:
+       skinTypes / concerns / prefs come from fixed lists, ingredients and the avoid-list from the LIVE catalog vocabulary (NikoraAssistant.vocab(),
+       so products added in the admin panel are understood without any code change) plus a built-in ingredient lexicon.
+     The curation filter decides what is worth remembering:
+       - drops small talk, order / shipping / account chatter, emails, phone numbers and order numbers before anything is read
+       - never reads a sentence that touches health topics (pregnancy, eczema, allergies, medication ...)
+       - a first-person or explicit statement ("my skin is dry", "I want niacinamide", "avoid fragrance") is learned at once
+       - a casual mention (a question about an ingredient) only counts after it came up twice; unused items fade after 120 days
+     setProfile() validates every value against the same lists, so a language model's suggestion cannot add anything outside them. */
+  var PROFILE_KEY = 'nikora_profile', DAY = 864e5, KEEP_MS = 120 * DAY;
   var SKIN_RE = { dry: /\b(dry|dryness)\b/i, oily: /\b(oily|greasy)\b/i, combination: /\b(combination|combo)\b/i, sensitive: /\b(sensitive|sensitivity|reactive|irritated)\b/i, normal: /\bnormal skin\b/i };
   var CONCERN_RE = {
     'Barrier Repair': /\b(barrier|damaged skin|compromised skin)\b/i,
     'Hydration': /\b(hydrat\w*|dehydrat\w*|moisturi[sz]\w*)\b/i,
     'Acne & Blemishes': /\b(acne|breakouts?|blemish\w*|pimples?)\b/i,
     'Dullness': /\b(dull\w*|brighten\w*|radiance)\b/i,
-    'Redness': /\b(redness|rosacea|flushed)\b/i,
+    'Redness': /\b(redness|flushed)\b/i,
     'Dark Spots': /\b(dark spots?|hyperpigmentation|pigmentation|sun spots?)\b/i,
     'Fine Lines': /\b(fine lines?|wrinkles?|aging|ageing|firming)\b/i,
     'Pores': /\bpores?\b/i
   };
+  var PREF_RE = {
+    'fragrance-free': /\b(fragrance[- ]free|unscented|no fragrance|without fragrance|scent[- ]free)\b/i,
+    'alcohol-free': /\b(alcohol[- ]free|no alcohol|without alcohol)\b/i,
+    'vegan': /\bvegan\b/i,
+    'cruelty-free': /\bcruelty[- ]free\b/i,
+    'lightweight': /\b(lightweight|light texture|non[- ]greasy|not greasy)\b/i
+  };
+  var AVOID_RE = { 'fragrance': /\b(fragrance|perfume|parfum)\b/i, 'alcohol': /\balcohol\b/i, 'essential oils': /\bessential oils?\b/i, 'sulfates': /\bsulfates?\b/i, 'parabens': /\bparabens?\b/i };
+  /* built-in ingredient lexicon: the floor of the vocabulary when the Concierge (and its live catalog) is not loaded yet */
+  var LEXICON = ['niacinamide', 'hyaluronic acid', 'ceramide', 'retinol', 'vitamin c', 'centella', 'snail mucin', 'heartleaf', 'birch', 'collagen', 'peptide', 'panthenol', 'squalane',
+    'salicylic acid', 'glycolic acid', 'lactic acid', 'azelaic acid', 'propolis', 'mugwort', 'green tea', 'tea tree', 'aloe', 'madecassoside', 'adenosine', 'allantoin', 'ginseng', 'zinc'];
+  /* conversational noise and things that must never become profile data */
+  var SMALLTALK_RE = /^(hi|hello|hey|yo|thanks|thank you|thx|ok|okay|yes|no|yep|nope|sure|lol|haha|bye|goodbye|good (morning|afternoon|evening|night)|great|cool|nice|please|help|test)\W*$/i;
+  var SUPPORT_RE = /\b(order|tracking|track|refund|returns?|returned|shipping|shipped|deliver\w*|payment|charged?|invoice|cancel\w*|email|account|password|promo code|discount code)\b/i;
+  var SENSITIVE_RE = /\b(pregnan\w*|breast[- ]?feed\w*|nursing|eczema|psoriasis|dermatitis|rosacea|allerg\w*|medicat\w*|prescription|doctor|diagnos\w*|cancer|chemo\w*|pacemaker|implant\w*|surgery|medical)\b/i;
+  var STRONG_RE = /\b(my skin|my face|i have|i am|i'?m|i get|mine is|i want|i need|i'?d like|looking for|i prefer|i love|i like|i use|i avoid|avoid|stay away|steer clear|without|free of|free from|do not want|don'?t want|can'?t use|cannot use|hate|dislike)\b/i;
+  var AVOID_CUE = /\b(avoid|stay away|steer clear|without|free of|free from|do not want|don'?t want|can'?t use|cannot use|hate|dislike|breaks? me out|irritates? me)\b|\bno (fragrance|alcohol|essential|sulfate|paraben)/i;
+  var CAPS = { skinTypes: 3, concerns: 4, ingredients: 8, avoid: 6, prefs: 5 };
   /* what a product page has to mention before the rabbit says it lines up with the customer's profile (never claimed otherwise) */
   var PRODUCT_RE = {
     dry: /\b(dry|dryness|hydrat\w*|moisturi[sz]\w*)\b/i, oily: /\b(oil\w*|sebum|pores?)\b/i, combination: /\b(combination|balanc\w*)\b/i,
@@ -209,23 +238,103 @@
     'Acne & Blemishes': /\b(acne|blemish\w*|breakouts?)\b/i, 'Dullness': /\b(glow\w*|brighten\w*|radian\w*)\b/i, 'Redness': /\b(redness|soothing|calming)\b/i,
     'Dark Spots': /\b(dark spots?|pigment\w*)\b/i, 'Fine Lines': /\b(fine lines?|wrinkle\w*|firm\w*|collagen|lift\w*)\b/i, 'Pores': /\bpores?\b/i
   };
+  function escRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  function uniq(a) { var o = []; a.forEach(function (v) { if (o.indexOf(v) < 0) o.push(v); }); return o; }
   function negated(text, idx) { return /\b(not|no|isn'?t|never|without)\s+(really\s+|very\s+)?$/i.test(text.slice(Math.max(0, idx - 14), idx)); }
   function hit(re, text) {
     var g = new RegExp(re.source, 'ig'), m;
     while ((m = g.exec(text))) { if (!negated(text, m.index)) return true; }
     return false;
   }
+  function scrub(t) {
+    return String(t || '').slice(0, 600).replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, ' ').replace(/\b(nk|ret)[-\s]?\d{3,}\b/gi, ' ').replace(/https?:\/\/\S+/g, ' ').replace(/\+?\d[\d\s().-]{7,}\d/g, ' ');
+  }
   function cleanList(a, allowed) {
     var out = [];
     (Array.isArray(a) ? a : (a ? [a] : [])).forEach(function (v) {
       v = String(v || '').trim(); if (!v) return;
-      var key = allowed ? Object.keys(allowed).filter(function (k) { return k.toLowerCase() === v.toLowerCase(); })[0] : v.slice(0, 40);
+      var key = allowed ? Object.keys(allowed).filter(function (k) { return k.toLowerCase() === v.toLowerCase(); })[0] : null;
       if (key && out.indexOf(key) < 0) out.push(key);
     });
     return out;
   }
-  /* tolerant reader for whatever the Concierge itself stores: looks for skinType(s) / concerns / goals up to 3 levels deep */
+  function cleanTerms(a) {                                              /* stored ingredient / avoid terms: plain lowercase words only */
+    return uniq((Array.isArray(a) ? a : []).map(function (v) { return String(v || '').toLowerCase().trim(); }).filter(function (v) { return /^[a-z0-9][a-z0-9 \-]{1,38}$/.test(v); }));
+  }
+
+  /** The live ingredient vocabulary: the Concierge derives it from the catalog it just loaded (new products appear automatically), plus the built-in lexicon. */
+  function vocabulary() {
+    var out = {}, A = window.NikoraAssistant, list = [];
+    try { if (A && typeof A.vocab === 'function') list = A.vocab() || []; } catch (e) {}
+    list.forEach(function (v) { var t = String((v && v.term) || v || '').toLowerCase().trim(); if (t.length >= 3 && t.length <= 40) out[t] = 1; });
+    LEXICON.forEach(function (t) { out[t] = 1; });
+    return Object.keys(out);
+  }
+  function allowed() { return { skinTypes: Object.keys(SKIN_RE), concerns: Object.keys(CONCERN_RE), prefs: Object.keys(PREF_RE), avoid: Object.keys(AVOID_RE).concat(vocabulary()), ingredients: vocabulary() }; }
+  /** Cheap pre-check (used before spending a language-model call): is this message worth reading at all? */
+  function looksUseful(text) {
+    var t = scrub(text).trim();
+    return t.length >= 8 && !SMALLTALK_RE.test(t) && STRONG_RE.test(t) && !SENSITIVE_RE.test(t);
+  }
+
+  /** Pure: reads one customer message and returns what is worth remembering. weak = casual mentions that need a second sighting. */
+  function curate(text) {
+    var out = { skinTypes: [], concerns: [], ingredients: [], avoid: [], prefs: [], weak: [] };
+    text = scrub(text); if (!text.trim() || SMALLTALK_RE.test(text.trim())) return out;
+    var terms = vocabulary();
+    text.split(/[.!?\n;]+/).forEach(function (s) {
+      s = s.trim(); if (s.length < 4 || SENSITIVE_RE.test(s)) return;                       /* health sentences are never read */
+      var avoidCue = AVOID_CUE.test(s), strong = STRONG_RE.test(s) || avoidCue;
+      var st = [], cn = [], pf = [], av = [], ing = [];
+      Object.keys(SKIN_RE).forEach(function (k) { if (hit(SKIN_RE[k], s)) st.push(k); });
+      Object.keys(CONCERN_RE).forEach(function (k) { if (hit(CONCERN_RE[k], s)) cn.push(k); });
+      Object.keys(PREF_RE).forEach(function (k) { if (PREF_RE[k].test(s)) pf.push(k); });
+      if (avoidCue) Object.keys(AVOID_RE).forEach(function (k) { if (AVOID_RE[k].test(s)) av.push(k); });
+      terms.forEach(function (t) { if (new RegExp('\\b' + escRe(t) + 's?\\b', 'i').test(s)) ing.push(t); });
+      if (!(st.length || cn.length || pf.length || av.length || ing.length)) return;
+      if (SUPPORT_RE.test(s) && !strong) return;                                             /* order / shipping / account chatter */
+      if (avoidCue) { av = av.concat(ing); ing = []; }                                       /* "avoid retinol" -> avoid-list, not interest */
+      if (strong) {
+        out.skinTypes = out.skinTypes.concat(st); out.concerns = out.concerns.concat(cn); out.prefs = out.prefs.concat(pf);
+        out.avoid = out.avoid.concat(av); out.ingredients = out.ingredients.concat(ing);
+      } else {
+        st.forEach(function (k) { out.weak.push('st:' + k); }); cn.forEach(function (k) { out.weak.push('cn:' + k); }); ing.forEach(function (k) { out.weak.push('ing:' + k); });
+      }
+    });
+    ['skinTypes', 'concerns', 'ingredients', 'avoid', 'prefs', 'weak'].forEach(function (k) { out[k] = uniq(out[k]); });
+    return out;
+  }
+
+  /* ---- storage: v2 record { skinTypes, concerns, ingredients, avoid, prefs, pending{}, seen{} } ---- */
   var EXTERNAL_KEYS = ['nikora_ai_profile', 'nkai_profile', 'nkai_memory', 'nikora_ai_memory', 'nikora_assistant_memory'];
+  function readRaw() {
+    var r; try { r = JSON.parse(LS.get(PROFILE_KEY) || 'null'); } catch (e) { r = null; }
+    r = r && typeof r === 'object' ? r : {};
+    return { v: 2, skinTypes: cleanList(r.skinTypes, SKIN_RE), concerns: cleanList(r.concerns, CONCERN_RE), prefs: cleanList(r.prefs, PREF_RE),
+      avoid: cleanTerms(r.avoid), ingredients: cleanTerms(r.ingredients),
+      pending: r.pending && typeof r.pending === 'object' ? r.pending : {}, seen: r.seen && typeof r.seen === 'object' ? r.seen : {} };
+  }
+  function writeRaw(r) {
+    r.updatedAt = Date.now(); LS.set(PROFILE_KEY, JSON.stringify(r));
+    try { window.dispatchEvent(new CustomEvent('nikora:profile', { detail: getProfile() })); } catch (e) {}
+  }
+  function merge(r, add) {                                                                   /* validate, de-duplicate, cap (oldest out), stamp */
+    var now = Date.now(), vocab = vocabulary(), avoidOk = Object.keys(AVOID_RE).concat(vocab);
+    function put(list, vals, prefix) {
+      vals.forEach(function (v) { if (r[list].indexOf(v) < 0) r[list].push(v); r.seen[prefix + ':' + v] = now; });
+      while (r[list].length > CAPS[list]) {
+        var oldest = r[list].slice().sort(function (a, b) { return (r.seen[prefix + ':' + a] || 0) - (r.seen[prefix + ':' + b] || 0); })[0];
+        r[list].splice(r[list].indexOf(oldest), 1); delete r.seen[prefix + ':' + oldest];
+      }
+    }
+    put('skinTypes', cleanList([].concat(add.skinTypes || [], add.skinType || []).map(function (s) { return String(s).toLowerCase(); }), SKIN_RE), 's');
+    put('concerns', cleanList([].concat(add.concerns || [], add.concern || []), CONCERN_RE), 'c');
+    put('prefs', cleanList(add.prefs, PREF_RE), 'p');
+    put('ingredients', cleanTerms(add.ingredients).filter(function (t) { return vocab.indexOf(t) >= 0; }), 'i');
+    put('avoid', cleanTerms(add.avoid).filter(function (t) { return avoidOk.indexOf(t) >= 0; }), 'a');
+    return r;
+  }
+  /* tolerant reader for whatever the Concierge itself might store: skinType(s) / concerns / goals up to 3 levels deep */
   function digProfile(o, depth, out) {
     if (!o || typeof o !== 'object' || depth > 3) return;
     Object.keys(o).forEach(function (k) {
@@ -238,56 +347,68 @@
     });
   }
   function getProfile() {
-    var p = { skinTypes: [], concerns: [] }, raw = LS.get(PROFILE_KEY), o;
-    try { o = raw ? JSON.parse(raw) : null; } catch (e) { o = null; }
-    if (o) { p.skinTypes = cleanList(o.skinTypes, SKIN_RE); p.concerns = cleanList(o.concerns, CONCERN_RE); }
-    EXTERNAL_KEYS.forEach(function (k) { var r = LS.get(k); if (!r) return; try { digProfile(JSON.parse(r), 0, p); } catch (e) {} });
-    p.skinTypes = cleanList(p.skinTypes, SKIN_RE); p.concerns = cleanList(p.concerns, CONCERN_RE).slice(0, 4);
-    return (p.skinTypes.length || p.concerns.length) ? p : null;
+    var r = readRaw(), now = Date.now(), p = { skinTypes: [], concerns: [], ingredients: [], avoid: [], prefs: [] };
+    var pre = { skinTypes: 's', concerns: 'c', ingredients: 'i', avoid: 'a', prefs: 'p' };
+    Object.keys(pre).forEach(function (k) { p[k] = r[k].filter(function (v) { var t = r.seen[pre[k] + ':' + v]; return !t || now - t < KEEP_MS; }); });   /* unused items fade */
+    EXTERNAL_KEYS.forEach(function (k) { var raw = LS.get(k); if (!raw) return; try { digProfile(JSON.parse(raw), 0, p); } catch (e) {} });
+    p.skinTypes = cleanList(p.skinTypes, SKIN_RE); p.concerns = cleanList(p.concerns, CONCERN_RE).slice(0, CAPS.concerns);
+    return (p.skinTypes.length || p.concerns.length || p.ingredients.length || p.avoid.length || p.prefs.length) ? p : null;
   }
-  function saveProfile(p) {
-    LS.set(PROFILE_KEY, JSON.stringify({ v: 1, skinTypes: p.skinTypes, concerns: p.concerns.slice(0, 4), updatedAt: Date.now() }));
-    try { window.dispatchEvent(new CustomEvent('nikora:profile', { detail: getProfile() })); } catch (e) {}
-    if (widget.el) refreshDot();
-  }
-  /** Merge a profile object { skinTypes | skinType, concerns | concern } into the saved profile. */
-  function setProfile(o) {
-    o = o || {}; var cur = getProfile() || { skinTypes: [], concerns: [] };
-    var st = cleanList([].concat(o.skinTypes || [], o.skinType || []).map(function (s) { return String(s).toLowerCase(); }), SKIN_RE);
-    var cn = cleanList([].concat(o.concerns || [], o.concern || []), CONCERN_RE);
-    cur.skinTypes = cleanList(cur.skinTypes.concat(st), SKIN_RE); cur.concerns = cleanList(cur.concerns.concat(cn), CONCERN_RE);
-    saveProfile(cur); return getProfile();
-  }
-  /** Reads a sentence the CUSTOMER typed to the Concierge ("my skin is dry and sensitive, I want barrier repair") and remembers skin type / concerns. */
+  /** Merge a profile object { skinTypes | skinType, concerns | concern, ingredients, avoid, prefs } into the saved profile (every value is validated). */
+  function setProfile(o) { var r = merge(readRaw(), o || {}); writeRaw(r); return getProfile(); }
+  /** Reads a sentence the CUSTOMER typed ("my skin is dry, I want niacinamide, avoid fragrance") and remembers what the curation filter keeps. */
   function learn(text) {
-    text = String(text || '').slice(0, 600); if (!text) return getProfile();
-    var st = [], cn = [];
-    Object.keys(SKIN_RE).forEach(function (k) { if (hit(SKIN_RE[k], text)) st.push(k); });
-    Object.keys(CONCERN_RE).forEach(function (k) { if (hit(CONCERN_RE[k], text)) cn.push(k); });
-    return (st.length || cn.length) ? setProfile({ skinTypes: st, concerns: cn }) : getProfile();
+    var c = curate(text), r = readRaw(), now = Date.now(), promo = { skinTypes: [], concerns: [], ingredients: [] };
+    Object.keys(r.pending).forEach(function (k) { if (!r.pending[k] || now - (r.pending[k].at || 0) > 14 * DAY) delete r.pending[k]; });
+    c.weak.forEach(function (w) {                                                            /* a casual mention counts on its second sighting */
+      var rec = r.pending[w] || { n: 0 }; rec.n++; rec.at = now;
+      if (rec.n >= 2) { var kind = w.slice(0, w.indexOf(':')), val = w.slice(w.indexOf(':') + 1); delete r.pending[w]; (kind === 'st' ? promo.skinTypes : kind === 'cn' ? promo.concerns : promo.ingredients).push(val); }
+      else r.pending[w] = rec;
+    });
+    var add = { skinTypes: c.skinTypes.concat(promo.skinTypes), concerns: c.concerns.concat(promo.concerns), ingredients: c.ingredients.concat(promo.ingredients), avoid: c.avoid, prefs: c.prefs };
+    var any = add.skinTypes.length || add.concerns.length || add.ingredients.length || add.avoid.length || add.prefs.length;
+    if (any) merge(r, add);
+    if (any || c.weak.length) writeRaw(r);
+    return getProfile();
   }
-  function forget() { LS.del(PROFILE_KEY); EXTERNAL_KEYS.forEach(function (k) { LS.del(k); }); if (widget.el) refreshDot(); try { window.dispatchEvent(new CustomEvent('nikora:profile', { detail: null })); } catch (e) {} }
+  function forget() { LS.del(PROFILE_KEY); EXTERNAL_KEYS.forEach(function (k) { LS.del(k); }); try { window.dispatchEvent(new CustomEvent('nikora:profile', { detail: null })); } catch (e) {} }
   function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
-  function profileLabel(p) { return p ? (p.skinTypes.length ? p.skinTypes.map(cap).join('/') + ' skin' : p.concerns[0]) : ''; }
+  function profileLabel(p) { return p ? (p.skinTypes.length ? p.skinTypes.map(cap).join('/') + ' skin' : (p.concerns[0] || (p.ingredients[0] ? cap(p.ingredients[0]) : ''))) : ''; }
 
-  /* the one personal note: a product page only gets "matches" when its own text mentions what the customer asked for */
+  /* the one personal note: a product page only gets "matches" when its own text mentions what the customer asked for (or wanted to avoid) */
   function productText() {
     var parts = [], h1 = doc.querySelector('h1'), md = doc.querySelector('meta[name="description"]'), sci = doc.getElementById('panel-science');
     if (h1) parts.push(h1.textContent); if (md) parts.push(md.getAttribute('content')); if (sci) parts.push(sci.textContent);
     return parts.join(' ').slice(0, 4000);
   }
+  function mentions(txt, term) {                                          /* "fragrance-free" / "without alcohol" do not count as mentioning the term */
+    var re = new RegExp('\\b' + escRe(term) + 's?\\b', 'ig'), m;
+    while ((m = re.exec(txt))) {
+      var after = txt.slice(m.index + m[0].length, m.index + m[0].length + 6), before = txt.slice(Math.max(0, m.index - 12), m.index);
+      if (/^[\s-]*free/i.test(after) || /\b(free of|free from|without|no)\s*$/i.test(before)) continue;
+      return m[0].toLowerCase();
+    }
+    return '';
+  }
   function personalNote() {
     var p = getProfile(); if (!p) return null;
-    if (/product(\.html)?$/i.test(location.pathname) || /product\.html/i.test(location.pathname)) {
-      var txt = productText(), keys = p.skinTypes.concat(p.concerns), i, m;
-      for (i = 0; i < keys.length; i++) {
-        var re = PRODUCT_RE[keys[i]]; if (!re || !txt) continue;
-        if ((m = re.exec(txt))) return { text: 'Mascot Note: this one mentions \u201c' + m[0].toLowerCase() + '\u201d, which lines up with your ' + (SKIN_RE[keys[i]] ? cap(keys[i]) + ' skin' : keys[i]) + ' goals.' };
+    if (/product/i.test(location.pathname)) {
+      var txt = productText(), i, w;
+      if (txt) {
+        for (i = 0; i < p.avoid.length; i++) if ((w = mentions(txt, p.avoid[i]))) return { text: 'Mascot Note: Heads up, this one mentions \u201c' + w + '\u201d, which you wanted to avoid.' };
+        for (i = 0; i < p.ingredients.length; i++) if ((w = mentions(txt, p.ingredients[i]))) return { text: 'Mascot Note: this one mentions \u201c' + w + '\u201d, one of the ingredients you were interested in.' };
+        var keys = p.skinTypes.concat(p.concerns), m;
+        for (i = 0; i < keys.length; i++) {
+          var re = PRODUCT_RE[keys[i]]; if (!re) continue;
+          if ((m = re.exec(txt))) return { text: 'Mascot Note: this one mentions \u201c' + m[0].toLowerCase() + '\u201d, which lines up with your ' + (SKIN_RE[keys[i]] ? cap(keys[i]) + ' skin' : keys[i]) + ' goals.' };
+        }
       }
     }
     if (p.skinTypes.indexOf('sensitive') >= 0) return { text: 'Mascot Note: Remember to patch test on sensitive skin!' };
     if (p.skinTypes.indexOf('dry') >= 0) return { text: 'Mascot Note: Dry skin loves hydration layered on damp skin.' };
+    if (p.ingredients.length) return { text: 'Mascot Note: You were curious about ' + p.ingredients[0] + '. Ask me which products feature it.', ask: true };
     if (p.concerns.length) return { text: 'Mascot Note: Your focus is ' + p.concerns[0] + '. Ask me for picks that fit.', ask: true };
+    if (p.prefs.length) return { text: 'Mascot Note: You prefer ' + p.prefs[0] + '. Check each ingredient list before you buy.' };
     return null;
   }
   function pageTip() {
@@ -313,6 +434,7 @@
         '<g class="nkm-goggles"><rect x="21.5" y="67.5" width="20.6" height="18" rx="8.4"/><rect x="55.7" y="67.5" width="20.6" height="18" rx="8.4"/><path d="M42.1 76.7H55.7"/><path d="M21.5 76.7L8 74M76.3 76.7L90 74"/></g>' +
         '<path class="nkm-nose" d="M42.6 84.6C42.6 83.7 45.5 83.2 48.6 83.2C51.7 83.2 54.6 83.7 54.6 84.6C54.2 87.2 51.5 89.2 48.6 90.2C45.7 89.2 43 87.2 42.6 84.6Z"/>' +
         '<path class="nkm-mouth" d="M48.6 89.5V96.5M48.6 96.5C46 99.4 42.6 100.4 39.6 99.5C37.6 98.9 36.2 97.4 35.9 95.6M48.6 96.5C51.2 99.4 54.6 100.4 57.6 99.5C59.6 98.9 61 97.4 61.3 95.6"/>' +
+        '<ellipse class="nkm-mouth-o" cx="48.6" cy="98" rx="3.8" ry="5"/>' +
       '</g></g>' +
       '<path class="nkm-spk nkm-spk1" transform="translate(92 22)" d="' + SPARK + '"/><path class="nkm-spk nkm-spk2" transform="translate(6 38) scale(.7)" d="' + SPARK + '"/><path class="nkm-spk nkm-spk3" transform="translate(88 62) scale(.5)" d="' + SPARK + '"/>' +
     '</svg>';
@@ -322,6 +444,9 @@
   var COMPANION_CSS = [
     /* the layer covers the viewport but lets every click through; only the character, pin, bubble and popup take pointer events */
     '.nkm-widget{position:fixed;inset:0;z-index:999999;pointer-events:none;font-family:"Montserrat",system-ui,sans-serif;--nkm-w:66px;}',
+    /* theme sync (instant, pure CSS on <html data-theme>): light = obsidian body + gold outline + cream face; dark = cream-gold body + crisp obsidian face */
+    '.nkm-widget{--nkm-fill:#1C1722;--nkm-line:#C89B54;--nkm-face:#F7F4F0;--nkm-nose:#C89B54;--nkm-spark:#C89B54;--nkm-gog:rgba(200,155,84,.26);--nkm-gogline:#C89B54;}',
+    ':root[data-theme="dark"] .nkm-widget{--nkm-fill:#F2E3BE;--nkm-line:#D9AE62;--nkm-face:#0B0B0E;--nkm-nose:#8F6726;--nkm-spark:#F4D58D;--nkm-gog:rgba(11,11,14,.14);--nkm-gogline:#0B0B0E;}',
     '@media (max-width:640px){.nkm-widget{--nkm-w:54px;}}',
     'html.nkn-menu-open .nkm-widget{visibility:hidden;}',
     '@media (max-width:640px){.nkm-widget.is-chat-open{visibility:hidden;}}',
@@ -334,15 +459,16 @@
     '.nkm-jump{display:block;}',
     '.nkm-float{display:block;animation:nkmFloatW 5s ease-in-out infinite;}',
     '.nkm-live{display:block;width:100%;height:auto;overflow:visible;filter:drop-shadow(0 8px 16px rgba(0,0,0,.18));}',
-    '.nkm-live .nkm-shape{fill:#1C1722;stroke:#C89B54;stroke-width:6.5;stroke-linejoin:round;stroke-linecap:round;}',
-    ':root[data-theme="dark"] .nkm-live .nkm-shape{fill:#261F2E;}',
-    '.nkm-live .nkm-cream{fill:#F7F4F0;}',
-    '.nkm-live .nkm-nose{fill:#C89B54;}',
-    '.nkm-live .nkm-mouth{fill:none;stroke:#F7F4F0;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;}',
-    '.nkm-live .nkm-eye-happy,.nkm-live .nkm-goggles{opacity:0;transition:opacity .18s ease;}',
-    '.nkm-live .nkm-eye-happy{fill:none;stroke:#F7F4F0;stroke-width:3.4;stroke-linecap:round;}',
-    '.nkm-live .nkm-goggles{fill:rgba(200,155,84,.2);stroke:#E5BA73;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;}',
-    '.nkm-live .nkm-spk{fill:#E5BA73;opacity:0;transform-box:fill-box;transform-origin:center;}',
+    '.nkm-live .nkm-shape{fill:var(--nkm-fill);stroke:var(--nkm-line);stroke-width:6.5;stroke-linejoin:round;stroke-linecap:round;}',
+    '.nkm-live .nkm-cream{fill:var(--nkm-face);}',
+    '.nkm-live .nkm-nose{fill:var(--nkm-nose);}',
+    '.nkm-live .nkm-mouth{fill:none;stroke:var(--nkm-face);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;}',
+    '.nkm-live .nkm-mouth-o{fill:var(--nkm-face);opacity:0;}',
+    /* emotions switch with NO transition (0 ms): the state class is the only thing that changes */
+    '.nkm-live .nkm-eye-happy,.nkm-live .nkm-goggles{opacity:0;transition:none;}',
+    '.nkm-live .nkm-eye-happy{fill:none;stroke:var(--nkm-face);stroke-width:3.4;stroke-linecap:round;}',
+    '.nkm-live .nkm-goggles{fill:var(--nkm-gog);stroke:var(--nkm-gogline);stroke-width:3;stroke-linecap:round;stroke-linejoin:round;}',
+    '.nkm-live .nkm-spk{fill:var(--nkm-spark);opacity:0;transform-box:fill-box;transform-origin:center;}',
     '.nkm-live .nkm-body{transform-box:fill-box;transform-origin:50% 100%;animation:nkmBreathe 4.2s ease-in-out infinite;}',
     /* cursor tracking: the head tilts toward the pointer (--nkm-tilt) and the eyes look at it (--nkm-gx / --nkm-gy, SVG units) */
     '.nkm-live .nkm-tilt{transform-box:fill-box;transform-origin:50% 100%;transform:rotate(var(--nkm-tilt,0deg));transition:transform .22s ease-out;}',
@@ -359,6 +485,15 @@
     '.nkm-widget.is-joy .nkm-spk,.nkm-widget.is-lab .nkm-spk{opacity:1;animation:nkmTwinkle 1.1s ease-in-out infinite;}',
     '.nkm-widget.is-lab .nkm-goggles{opacity:1;}',
     '.nkm-widget.is-lab .nkm-spk2{animation-delay:.3s;}.nkm-widget.is-lab .nkm-spk3{animation-delay:.6s;}',
+    /* playful hop, surprise, pointing arrow */
+    '.nkm-widget.is-hop .nkm-jump{animation:nkmHop .7s cubic-bezier(.3,.7,.4,1);}',
+    '.nkm-widget.is-surprise .nkm-jump{animation:nkmHop .45s cubic-bezier(.3,.7,.4,1);}',
+    '.nkm-widget.is-surprise .nkm-live .nkm-cream{transform-box:fill-box;transform-origin:center;transform:scale(1.42);}',
+    '.nkm-widget.is-surprise .nkm-live .nkm-mouth{opacity:0;}.nkm-widget.is-surprise .nkm-live .nkm-mouth-o{opacity:1;}',
+    '.nkm-widget.is-surprise .nkm-live .nkm-ear-l{transform:rotate(-7deg) translateY(-3px);}.nkm-widget.is-surprise .nkm-live .nkm-ear-r{transform:rotate(7deg) translateY(-3px);}',
+    '.nkm-arrow{position:absolute;left:0;top:0;width:22px;height:22px;pointer-events:none;color:#C89B54;transform:rotate(var(--nkm-ang,0deg));filter:drop-shadow(0 2px 5px rgba(0,0,0,.4));}',
+    '.nkm-arrow[hidden]{display:none;}',
+    '.nkm-arrow svg{display:block;width:100%;height:100%;animation:nkmNudge .7s ease-in-out infinite;}',
     /* pinned = grounded in the corner and quiet: no float, no breathing, no wiggles, no head tracking */
     '.nkm-widget.is-pinned .nkm-float,.nkm-widget.is-pinned .nkm-live .nkm-body{animation:none;}',
     /* pin / dock toggle: a small gold pushpin that tilts when free and stands upright, filled, when pinned */
@@ -375,7 +510,7 @@
     '.nkm-stage[data-v="d"] .nkm-bubble,.nkm-stage[data-v="d"] .nkm-pop{top:calc(100% + 8px);}',
     '.nkm-stage[data-h="l"] .nkm-bubble,.nkm-stage[data-h="l"] .nkm-pop{left:0;}',
     '.nkm-stage[data-h="r"] .nkm-bubble,.nkm-stage[data-h="r"] .nkm-pop{right:0;}',
-    '.nkm-bubble{width:max-content;max-width:min(280px,calc(100vw - 32px));padding:12px 34px 12px 14px;font-size:12.5px;line-height:1.5;animation:nkmPop .28s cubic-bezier(.2,.8,.2,1);}',
+    '.nkm-bubble{width:max-content;max-width:min(280px,calc(100vw - 32px));padding:12px 34px 12px 14px;font-size:12.5px;line-height:1.5;animation:nkmPop .14s cubic-bezier(.2,.8,.2,1);}',
     '.nkm-bubble::after{content:"";position:absolute;width:12px;height:12px;background:#0B0B0E;}',
     '.nkm-stage[data-v="u"] .nkm-bubble::after{bottom:-7px;border-right:1px solid rgba(200,155,84,.55);border-bottom:1px solid rgba(200,155,84,.55);transform:rotate(45deg);}',
     '.nkm-stage[data-v="d"] .nkm-bubble::after{top:-7px;border-left:1px solid rgba(200,155,84,.55);border-top:1px solid rgba(200,155,84,.55);transform:rotate(45deg);}',
@@ -385,7 +520,7 @@
     '.nkm-x{position:absolute;top:6px;right:6px;width:24px;height:24px;border:0;border-radius:50%;background:transparent;color:rgba(247,244,240,.6);font-size:16px;line-height:1;cursor:pointer;}',
     '.nkm-x:hover{color:#F7F4F0;background:rgba(255,255,255,.08);}',
     '.nkm-b-act{display:inline-block;margin:8px 10px 0 0;padding:0;border:0;background:none;color:#E5BA73;font:inherit;font-size:12px;font-weight:700;text-decoration:underline;text-underline-offset:3px;cursor:pointer;}',
-    '.nkm-pop{width:min(310px,calc(100vw - 32px));padding:16px 16px 14px;animation:nkmPop .28s cubic-bezier(.2,.8,.2,1);}',
+    '.nkm-pop{width:min(310px,calc(100vw - 32px));padding:16px 16px 14px;animation:nkmPop .14s cubic-bezier(.2,.8,.2,1);}',
     '.nkm-pop-h{margin:0 0 6px;font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#E5BA73;}',
     '.nkm-pop-t{margin:0 0 12px;font-size:13px;line-height:1.55;color:rgba(247,244,240,.88);}',
     '.nkm-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px;}',
@@ -405,6 +540,8 @@
     '.nkm-foot button{padding:0;border:0;background:none;color:rgba(247,244,240,.55);font:inherit;font-size:11px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;}',
     '.nkm-foot button:hover{color:#F7F4F0;}',
     '.nkm-widget button:focus-visible,.nkm-widget a:focus-visible,.nkm-widget input:focus-visible{outline:2px solid #E5BA73;outline-offset:2px;}',
+    '@keyframes nkmHop{0%{transform:translateY(0) scale(1,1)}20%{transform:translateY(0) scale(1.07,.92)}50%{transform:translateY(-17px) scale(.96,1.06)}78%{transform:translateY(0) scale(1.05,.94)}100%{transform:translateY(0) scale(1)}}',
+    '@keyframes nkmNudge{0%,100%{transform:translateX(0)}50%{transform:translateX(6px)}}',
     '@keyframes nkmFloatW{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}',
     '@keyframes nkmBreathe{0%,100%{transform:scale(1,1)}50%{transform:scale(1.014,1.03)}}',
     '@keyframes nkmWigL{0%,100%{transform:rotate(0)}25%{transform:rotate(-11deg)}55%{transform:rotate(6deg)}80%{transform:rotate(-3deg)}}',
@@ -412,14 +549,17 @@
     '@keyframes nkmJoy{0%{transform:translateY(0) scale(1,1)}14%{transform:translateY(0) scale(1.1,.88)}40%{transform:translateY(-26px) scale(.95,1.08)}62%{transform:translateY(0) scale(1.07,.92)}78%{transform:translateY(-9px) scale(1)}100%{transform:translateY(0) scale(1)}}',
     '@keyframes nkmTwinkle{0%,100%{transform:scale(.4);opacity:.25}50%{transform:scale(1.15);opacity:1}}',
     '@keyframes nkmPop{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}',
-    '@media (prefers-reduced-motion:reduce){.nkm-float,.nkm-live .nkm-body,.nkm-widget.is-joy .nkm-jump,.nkm-live.is-wiggle .nkm-ear,.nkm-bubble,.nkm-pop,.nkm-widget.is-joy .nkm-spk,.nkm-widget.is-lab .nkm-spk{animation:none !important;}.nkm-widget.is-joy .nkm-spk,.nkm-widget.is-lab .nkm-spk{opacity:1;transform:none;}.nkm-stage.is-gliding,.nkm-live .nkm-tilt,.nkm-live .nkm-gaze,.nkm-lean{transition:none;}}'
+    '@media (prefers-reduced-motion:reduce){.nkm-float,.nkm-live .nkm-body,.nkm-widget.is-joy .nkm-jump,.nkm-widget.is-hop .nkm-jump,.nkm-widget.is-surprise .nkm-jump,.nkm-arrow svg,.nkm-live.is-wiggle .nkm-ear,.nkm-bubble,.nkm-pop,.nkm-widget.is-joy .nkm-spk,.nkm-widget.is-lab .nkm-spk{animation:none !important;}.nkm-widget.is-joy .nkm-spk,.nkm-widget.is-lab .nkm-spk{opacity:1;transform:none;}.nkm-stage.is-gliding,.nkm-live .nkm-tilt,.nkm-live .nkm-gaze,.nkm-lean{transition:none;}}'
   ].join('\n');
 
-  var widget = { el: null, stage: null, live: null, bubble: null, pop: null, char: null, pin: null, lean: null };
+  var widget = { el: null, stage: null, live: null, bubble: null, pop: null, char: null, pin: null, lean: null, arrow: null };
   var pos = { x: 0, y: 0 }, roamRaf = 0, trackRaf = 0, trackPt = null, liftPx = 0;
   var bubbleTimer = 0, joyTimer = 0, labTimer = 0, idleTimer = 0, lastBubbleAt = 0, lastJoyAt = 0, lastActivity = 0, glideTimer = 0;
   var MUTE_KEY = 'nkm_mute_until', NUDGE_KEY = 'nkm_nudges', PIN_KEY = 'nikora_mascot_pinned';
-  var userPinned = false, onCheckout = false;
+  var userPinned = false, onCheckout = false, pointing = false, pointTimer = 0, autoTimer = 0, autoCount = 0, lastScroll = 0, hopTimer = 0, surpriseTimer = 0;
+  var PURCHASED_KEY = 'nikora_has_purchased';
+  function hasPurchased() { return LS.get(PURCHASED_KEY) === '1'; }
+  function markPurchased() { LS.set(PURCHASED_KEY, '1'); }
 
   function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
   function muted() { return Number(LS.get(MUTE_KEY) || 0) > Date.now(); }
@@ -523,33 +663,46 @@
 
   /* ---------- reactions ---------- */
   function setClass(c, on) { if (widget.el) widget.el.classList.toggle(c, on); }
+  /* Every emotion is applied SYNCHRONOUSLY (0 ms): a class flips, CSS has no transition on the face. */
+  function clearEmotions() { ['is-joy', 'is-lab', 'is-hop', 'is-surprise'].forEach(function (c) { setClass(c, false); }); }
   function react(kind, o) {
     if (!widget.el) return;
+    o = o || {};
     if (kind === 'joy') {
       if (Date.now() - lastJoyAt < 1500) return; lastJoyAt = Date.now();
-      setClass('is-lab', false); setClass('is-joy', false); void widget.el.offsetWidth; setClass('is-joy', true);
+      clearEmotions(); void widget.el.offsetWidth; setClass('is-joy', true);
       clearTimeout(joyTimer); joyTimer = window.setTimeout(function () { setClass('is-joy', false); }, 1100);
-      if (!(o && o.silent) && Date.now() - lastBubbleAt > 6000) say(['Great pick!', 'Added to your routine.', 'Lovely choice!'][Math.floor(Math.random() * 3)], { ms: 2200 });
+      if (!o.silent && Date.now() - lastBubbleAt > 6000) say(['Great pick!', 'Added to your routine.', 'Lovely choice!'][Math.floor(Math.random() * 3)], { ms: 2200 });
     } else if (kind === 'lab') {
-      if (widget.el.classList.contains('is-joy')) return;
+      if (widget.el.classList.contains('is-joy') || widget.el.classList.contains('is-surprise')) return;
       setClass('is-lab', true); clearTimeout(labTimer);
-      labTimer = window.setTimeout(function () { setClass('is-lab', false); }, (o && o.ms) || 2400);
+      labTimer = window.setTimeout(function () { setClass('is-lab', false); }, o.ms || 2400);
+    } else if (kind === 'surprise') {
+      if (widget.el.classList.contains('is-joy')) return;
+      setClass('is-lab', false); setClass('is-surprise', false); void widget.el.offsetWidth; setClass('is-surprise', true);
+      clearTimeout(surpriseTimer); surpriseTimer = window.setTimeout(function () { setClass('is-surprise', false); }, o.ms || 1300);
+    } else if (kind === 'hop') {
+      if (widget.el.classList.contains('is-joy') || widget.el.classList.contains('is-surprise')) return;
+      setClass('is-hop', false); void widget.el.offsetWidth; setClass('is-hop', true);
+      clearTimeout(hopTimer); hopTimer = window.setTimeout(function () { setClass('is-hop', false); }, 750);
     }
   }
   function cartCount() { try { return (JSON.parse(LS.get('nikora_cart') || '[]') || []).reduce(function (n, i) { return n + (Number(i && (i.qty != null ? i.qty : i.quantity)) || 1); }, 0); } catch (e) { return 0; } }
+  var ADD_SEL = '.nk-add,[data-action="add-to-cart"],[data-bs-add],#add-to-cart-btn,#mcta-add-btn,.btn-add-cart,.cart-rec-add,[data-add]';
+  var SURPRISE_SEL = '.nk-badge.sale,.nk-badge.low,.nk-urgency';
   var LAB_SEL = '[data-nk-ingredient],[data-nk-lab],.ingredient,.ingredient-chip,.key-active,#panel-science li,#panel-science strong,.mech-btn';
 
   /* ---------- cursor tracking: head tilt + eyes follow the pointer (not when pinned, on touch, or with reduced motion) ---------- */
   function stopTrack() { trackPt = null; if (widget.live) { widget.live.style.setProperty('--nkm-tilt', '0deg'); widget.live.style.setProperty('--nkm-gx', '0'); widget.live.style.setProperty('--nkm-gy', '0'); } }
   function applyTrack() {
-    trackRaf = 0; if (!trackPt || !widget.live || quiet() || reduceMotion()) return;
+    trackRaf = 0; if (!trackPt || !widget.live || quiet() || reduceMotion() || pointing) return;
     var cx = pos.x + charW() / 2, cy = pos.y + charH() * 0.62, dx = trackPt.x - cx, dy = trackPt.y - cy;
     widget.live.style.setProperty('--nkm-tilt', (clamp(dx / (window.innerWidth * 0.4), -1, 1) * 10).toFixed(1) + 'deg');
     widget.live.style.setProperty('--nkm-gx', (clamp(dx / 160, -1, 1) * 2.6).toFixed(2));
     widget.live.style.setProperty('--nkm-gy', (clamp(dy / 160, -1, 1) * 2).toFixed(2));
   }
   function onPointer(e) {
-    if (e.pointerType === 'touch' || quiet() || reduceMotion()) return;
+    if (e.pointerType === 'touch' || quiet() || reduceMotion() || pointing) return;
     trackPt = { x: e.clientX, y: e.clientY };
     if (!trackRaf) trackRaf = window.requestAnimationFrame(applyTrack);
   }
@@ -628,6 +781,43 @@
     widget.pop.hidden = true; widget.char.setAttribute('aria-expanded', 'false'); if (!skipFocus) widget.char.focus();
   }
 
+  /* ---------- autonomous behaviour: the rabbit does something on its own every 14-26 s (never when pinned, at checkout it only hops / wiggles) ---------- */
+  function setTilt(deg, gx, gy) {
+    if (!widget.live) return;
+    widget.live.style.setProperty('--nkm-tilt', deg.toFixed(1) + 'deg'); widget.live.style.setProperty('--nkm-gx', gx.toFixed(2)); widget.live.style.setProperty('--nkm-gy', gy.toFixed(2));
+  }
+  function cartEl() { return doc.getElementById('open-cart-btn') || (doc.getElementById('cart-count') && doc.getElementById('cart-count').parentNode) || null; }
+  function bestEl() { return doc.querySelector('[data-nk-point="bestsellers"]') || doc.getElementById('bestseller') || doc.querySelector('a[href*="filter=bestsellers"]') || null; }
+  function endPoint() {
+    clearTimeout(pointTimer); pointing = false; if (widget.arrow) widget.arrow.hidden = true; setTilt(0, 0, 0);
+  }
+  /** Turn toward an element (head tilt + eyes + a pulsing gold arrow) and say something about it. Returns false when the element is not on screen. */
+  function pointAt(el, text, o) {
+    o = o || {};
+    if (!el || !widget.stage || quiet()) return false;
+    var r = el.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight;
+    if (r.width < 2 || r.bottom < 0 || r.top > vh || r.right < 0 || r.left > vw) return false;
+    var cx = pos.x + charW() / 2, cy = pos.y + charH() / 2, dx = r.left + r.width / 2 - cx, dy = r.top + r.height / 2 - cy, ang = Math.atan2(dy, dx), rad = charW() * 0.82;
+    pointing = true; setTilt(clamp(dx / 220, -1, 1) * 14, clamp(dx / 120, -1, 1) * 2.8, clamp(dy / 120, -1, 1) * 2.2);
+    widget.arrow.style.left = (charW() / 2 + Math.cos(ang) * rad - 11) + 'px'; widget.arrow.style.top = (charH() / 2 + Math.sin(ang) * rad - 11) + 'px';
+    widget.arrow.style.setProperty('--nkm-ang', (ang * 180 / Math.PI).toFixed(1) + 'deg'); widget.arrow.hidden = false;
+    clearTimeout(pointTimer); pointTimer = window.setTimeout(endPoint, o.ms || 4200);
+    if (text) say(text, { href: o.href, hrefLabel: o.hrefLabel, ms: o.ms || 4600, quiet: !o.href });
+    return true;
+  }
+  function scheduleAuto() { clearTimeout(autoTimer); if (widget.el && !reduceMotion()) autoTimer = window.setTimeout(runAuto, 14000 + Math.random() * 12000); }
+  function runAuto() {
+    scheduleAuto();
+    if (doc.hidden || quiet() || (widget.pop && !widget.pop.hidden) || pointing || Date.now() - lastScroll < 1500 || Date.now() - lastBubbleAt < 6000) return;
+    var acts = ['hop', 'hop', 'wiggle'];
+    if (!onCheckout && !muted() && autoCount < 4) { if (cartEl()) acts.push('cart'); if (bestEl()) acts.push('best'); }
+    var a = acts[Math.floor(Math.random() * acts.length)];
+    if (a === 'hop') react('hop');
+    else if (a === 'wiggle') { widget.live.classList.add('is-wiggle'); window.setTimeout(function () { widget.live.classList.remove('is-wiggle'); }, 900); }
+    else if (a === 'cart') { autoCount++; react('hop'); pointAt(cartEl(), cartCount() > 0 ? 'Your bag is ready whenever you are.' : 'Your bag lives up here.'); }
+    else if (a === 'best') { autoCount++; react('hop'); pointAt(bestEl(), 'Bestsellers are a lovely place to start.', { href: 'catalog.html?filter=bestsellers', hrefLabel: 'Explore Bestsellers' }); }
+  }
+
   function lift() {
     var bar = doc.getElementById('mobile-cta-bar'), v = 0;
     if (bar) { var cs = window.getComputedStyle(bar); if (cs.display !== 'none' && !/matrix\([^)]*,\s*[1-9]\d*\)$/.test(cs.transform) && bar.getBoundingClientRect().top < window.innerHeight) v = bar.offsetHeight + 8; }
@@ -640,16 +830,19 @@
     var path = location.pathname.toLowerCase();
     for (var i = 0; i < CFG.hideOn.length; i++) if (path.indexOf(CFG.hideOn[i]) >= 0) return;
     onCheckout = /checkout/.test(path);
-    userPinned = LS.get(PIN_KEY) === '1' || CFG.roam === false;
+    if (SS.get('nikora_last_order')) markPurchased();                       /* an order was completed in this tab */
+    var pref = LS.get(PIN_KEY);                                              /* the customer's own choice always wins; otherwise returning buyers start pinned (quiet) */
+    userPinned = pref === '1' || (pref === null && (CFG.roam === false || (CFG.autoStatic !== false && hasPurchased())));
     var st = doc.createElement('style'); st.id = 'nk-mascot-live-css'; st.textContent = COMPANION_CSS; (doc.head || doc.documentElement).appendChild(st);
     var el = doc.createElement('div');
     el.className = 'nkm-widget'; el.id = 'nkm-widget';
     el.innerHTML = '<div class="nkm-stage"><div class="nkm-bubble" role="status" aria-live="polite" hidden></div><div class="nkm-pop" role="dialog" aria-label="NIKORA Rabbit guide" hidden></div>' +
       '<button type="button" class="nkm-char" aria-label="Open the NIKORA Rabbit guide" aria-expanded="false"><span class="nkm-lean"><span class="nkm-jump"><span class="nkm-float">' + liveSvg() + '</span></span></span></button>' +
+      '<span class="nkm-arrow" hidden><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 5l7 7-7 7"/></svg></span>' +
       '<button type="button" class="nkm-pin" aria-pressed="false">' + PIN_SVG + '</button></div>';
     doc.body.appendChild(el);
     widget.el = el; widget.stage = el.querySelector('.nkm-stage'); widget.bubble = el.querySelector('.nkm-bubble'); widget.pop = el.querySelector('.nkm-pop');
-    widget.char = el.querySelector('.nkm-char'); widget.pin = el.querySelector('.nkm-pin'); widget.lean = el.querySelector('.nkm-lean'); widget.live = el.querySelector('.nkm-live');
+    widget.char = el.querySelector('.nkm-char'); widget.pin = el.querySelector('.nkm-pin'); widget.arrow = el.querySelector('.nkm-arrow'); widget.lean = el.querySelector('.nkm-lean'); widget.live = el.querySelector('.nkm-live');
     if (onCheckout) el.classList.add('is-forced-dock');
     setPinned(userPinned, true);
     lift(); kick(true);
@@ -677,21 +870,31 @@
     window.addEventListener('nikora:assistant-close', function () { setClass('is-chat-open', false); });
 
     /* roaming follows the scroll; resize / orientation re-places the rabbit */
-    window.addEventListener('scroll', function () { kick(false); }, { passive: true });
+    window.addEventListener('scroll', function () { lastScroll = Date.now(); if (pointing) endPoint(); kick(false); }, { passive: true });
     window.addEventListener('resize', function () { kick(true); });
     window.addEventListener('load', function () { kick(false); });
     window.addEventListener('pointermove', onPointer, { passive: true });
     /* joyful jump when something was really added to the cart (the bag count went up after the click) */
-    doc.addEventListener('click', function () { var before = cartCount(); window.setTimeout(function () { if (cartCount() > before) react('joy'); }, 350); }, true);
+    doc.addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest(ADD_SEL)) react('joy');                                   /* 0 ms: on the click itself */
+      var before = cartCount();                                                                          /* other ways of adding / removing: judged by the bag count right after */
+      window.setTimeout(function () { var now = cartCount(); if (now > before) react('joy'); else if (now < before) react('surprise', { ms: 900 }); }, 350);
+    }, true);
     /* science mode: lab goggles + sparkles while the pointer is on a key ingredient */
     doc.addEventListener('pointerover', function (e) {
+      if (e.target.closest && e.target.closest(SURPRISE_SEL)) { react('surprise'); return; }              /* deals and low-stock badges: surprise, instantly */
       var t = e.target.closest && e.target.closest(LAB_SEL); if (!t) return;
       react('lab', { ms: 2600 });
       var msg = t.getAttribute && t.getAttribute('data-nk-lab'); if (msg && Date.now() - lastBubbleAt > 4000) say(msg, { ms: 4200, quiet: true });
     });
     ['pointermove', 'keydown', 'scroll', 'touchstart', 'click'].forEach(function (ev) { window.addEventListener(ev, onActivity, { passive: true }); });
     doc.addEventListener('visibilitychange', function () { if (!doc.hidden) armIdle(); });
-    window.setInterval(lift, 800); lifeLoop(); armIdle();
+    window.addEventListener('nikora:order-complete', function () {                                      /* checkout success: remember it, celebrate, and start pinned next visit */
+      markPurchased(); react('joy', { silent: true });
+      say('Thank you! Your order is confirmed.', { force: true, quiet: true, ms: 7000 });
+    });
+    window.setInterval(lift, 800); lifeLoop(); armIdle(); scheduleAuto();
+    if (/page not found/i.test(doc.title || '')) react('surprise', { ms: 1800 });
     /* checkout: the rabbit is there to reassure, with one friendly line a few seconds after the page opens */
     if (onCheckout && !quiet() && !muted() && !SS.get('nkm_ck_hello')) {
       SS.set('nkm_ck_hello', '1');
@@ -701,7 +904,8 @@
 
   injectCss();
   var api = { version: '1.0', svg: svg, tip: tip, help: help, empty: empty, enhance: enhance, poses: Object.keys(POSES),
-    learn: learn, setProfile: setProfile, getProfile: getProfile, forget: forget, say: say, react: react, open: openAssistant };
+    learn: learn, setProfile: setProfile, getProfile: getProfile, forget: forget, say: say, react: react, open: openAssistant,
+    curate: curate, looksUseful: looksUseful, allowed: allowed, markPurchased: markPurchased, point: pointAt };
   window.NKMascot = api;
 
   function start() {
