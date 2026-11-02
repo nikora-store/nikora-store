@@ -8,6 +8,10 @@
  *   3. SMOOTH COLLAPSE    <details> (height + fade, 280 ms), panels toggled with the `hidden` attribute (aria-controls + aria-expanded buttons,
  *                         e.g. the science mechanism cards), and fast FAQ / accordion CSS (.faq-item, .accordion-item).
  *   4. ICON CENTERING     the SVG inside .gb-ico / .step-ico / .cover-ico gets its viewBox shifted so its drawing is centred in the tile.
+ *   5. BARS IN FLOW       search / filter / toolbar bars never stick or float over content (CSS guard + a runtime check that un-sticks any new one).
+ *                         Opt out per element with data-nk-sticky. Sidebars beside the content (.pv-side on desktop, .ret-card, .ck-summary) stay sticky on purpose.
+ *   6. CODE MATRIX        a faint, slow rain of JavaScript snippets behind the page, in DARK MODE ONLY (canvas #nk-code-matrix, z-index -1).
+ *                         window.NK_MATRIX = { enabled:true, opacity:.16, fps:30 } (set before this file loads). Reduced motion / data saver: one static frame.
  *
  * Loading: nav.js loads this file from its own folder on every page. You can also add <script src="animations.js" defer></script> to a page's <head>
  * to start the effects a little earlier; it never runs twice.
@@ -40,6 +44,14 @@
     'html .faq-a>div{min-height:0;}',
     'html .accordion-panel{opacity:0;transition:max-height .28s ' + EASE + ',opacity .28s ease;}',
     'html .accordion-item.open .accordion-panel{opacity:1;}',
+    /* search / filter / toolbar bars stay in normal document flow on every page (z-index only keeps their dropdowns above the cards) */
+    'html .toolbar-wrap,html .search-filter-container,html .catalog-controls,html .filter-bar,html .rv-toolbar,html .f-search-wrap,html .f-chips-wrap,html .r-tabs-wrap{position:relative !important;top:auto !important;bottom:auto !important;z-index:5 !important;}',
+    /* the "On this page" bar of the policy pages floated over the text on phones; the desktop sidebar beside the text is untouched */
+    '@media (max-width:960px){html .pv-side{position:static !important;top:auto !important;z-index:auto !important;margin-top:0 !important;padding-top:0 !important;background:none !important;}}',
+    /* dark-mode code matrix: only exists visually in dark mode, always behind the content, never clickable */
+    '#nk-code-matrix{position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:-1;pointer-events:none;display:none;opacity:0;-webkit-mask-image:radial-gradient(ellipse 75% 65% at 50% 42%,rgba(0,0,0,.42) 0%,#000 100%);mask-image:radial-gradient(ellipse 75% 65% at 50% 42%,rgba(0,0,0,.42) 0%,#000 100%);}',
+    ':root[data-theme="dark"] #nk-code-matrix{display:block;opacity:var(--nk-matrix-o,.16);}',
+    '@media print{#nk-code-matrix{display:none !important;}}',
     '@media (prefers-reduced-motion:reduce){html .faq-a,html .accordion-panel{transition:none;}}'
   ].join('\n');
   function injectCss() {
@@ -230,6 +242,91 @@
     });
   }
 
+  /* ====================================================================== 5. BARS STAY IN NORMAL FLOW */
+  var BAR_SEL = '[role="search"],[class*="toolbar"],[class*="filter-bar"],[class*="search-bar"],[class*="search-wrap"],[class*="chips-wrap"],[class*="tabs-wrap"]';
+  var BAR_SKIP = '[data-nk-sticky],.nkn-header,.nkn-drawer,#cart-drawer,.nkm-widget,[role="dialog"],[aria-modal="true"]';
+  /** Safety net for bars the CSS above does not name: anything search / filter / toolbar shaped that is position:sticky is put back in the flow. (position:fixed is left alone: those are drawers and dialogs.) */
+  function keepBarsInFlow(scope) {
+    each((scope || doc).querySelectorAll(BAR_SEL), function (el) {
+      if (el.closest(BAR_SKIP)) return;
+      if (window.getComputedStyle(el).position === 'sticky') { el.style.setProperty('position', 'relative', 'important'); el.style.setProperty('top', 'auto', 'important'); }
+    });
+  }
+  function initFlow() {
+    keepBarsInFlow();
+    var t = 0;
+    function later() { clearTimeout(t); t = window.setTimeout(keepBarsInFlow, 250); }
+    window.addEventListener('resize', later);
+    if (window.MutationObserver) new MutationObserver(later).observe(doc.body, { childList: true, subtree: true });
+  }
+
+  /* ====================================================================== 6. DARK-MODE CODE MATRIX */
+  var MATRIX_LINES = [
+    'const routine = ["cleanse", "tone", "infuse", "seal"];',
+    'export const glow = (skin) => skin.hydrate().soothe();',
+    'await fetch("/api/catalog").then((r) => r.json());',
+    'const total = cart.reduce((s, i) => s + i.price * i.qty, 0);',
+    'if (skin.barrier < 0.6) { serum.apply("centella"); }',
+    'for (const step of routine) { await step.apply(); }',
+    'document.querySelector(".glass-skin").classList.add("glow");',
+    'localStorage.setItem("theme", "dark");',
+    'const wand = new Device({ led: 630, ems: true });',
+    'new Promise((resolve) => setTimeout(resolve, 300));',
+    'items.filter((p) => p.bestseller).sort(byRank);',
+    'window.addEventListener("scroll", () => rabbit.follow());'
+  ];
+  function initMatrix() {
+    var cfg = window.NK_MATRIX || {};
+    if (cfg.enabled === false) return;
+    var cvs = doc.createElement('canvas'); cvs.id = 'nk-code-matrix'; cvs.setAttribute('aria-hidden', 'true');
+    if (cfg.opacity != null) cvs.style.setProperty('--nk-matrix-o', String(cfg.opacity));
+    doc.body.appendChild(cvs);                                           /* appended last: z-index -1 puts it behind everything regardless of DOM order */
+    var ctx = cvs.getContext && cvs.getContext('2d'); if (!ctx) return;
+    var conn = navigator.connection || {}, lowEnd = (navigator.hardwareConcurrency || 4) <= 2 || (navigator.deviceMemory || 4) <= 2;
+    var still = reduced() || conn.saveData === true;                      /* one static frame instead of animation */
+    var dpr = Math.min(window.devicePixelRatio || 1, 1.5), frameMs = 1000 / (cfg.fps || (lowEnd ? 20 : 30));
+    var W = 0, H = 0, cell = 17, cols = [], raf = 0, last = 0, running = false, built = false, warmed = false;
+    var COLOR = 'rgba(200,155,84,0.55)', HEAD = 'rgba(244,220,168,0.9)';
+    function isDark() { return root.getAttribute('data-theme') === 'dark'; }
+    function rnd(n) { return Math.floor(Math.random() * n); }
+    function newCol(x) { var line = MATRIX_LINES[rnd(MATRIX_LINES.length)]; return { x: x, y: -cell * rnd(Math.max(8, Math.floor(H / cell))), v: 0.1 + Math.random() * 0.18, acc: 0, line: line, i: rnd(line.length) }; }
+    function build() {
+      W = window.innerWidth; H = window.innerHeight; cell = W < 700 ? 15 : 17;
+      cvs.width = Math.round(W * dpr); cvs.height = Math.round(H * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.font = (cell - 4) + 'px "JetBrains Mono","Fira Code",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace'; ctx.textBaseline = 'top';
+      var spacing = cell * (W < 700 ? 2.8 : 2.2), n = Math.ceil(W / spacing); if (lowEnd) n = Math.ceil(n * 0.6);
+      cols = []; for (var i = 0; i < n; i++) cols.push(newCol(i * spacing + rnd(6)));
+      built = true; warmed = false;
+    }
+    function tick() {
+      ctx.globalCompositeOperation = 'destination-out'; ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.fillRect(0, 0, W, H);     /* old characters fade away: the trail */
+      ctx.globalCompositeOperation = 'source-over';
+      for (var k = 0; k < cols.length; k++) {
+        var c = cols[k]; c.acc += c.v;
+        while (c.acc >= 1) {
+          c.acc -= 1; var ch = c.line.charAt(c.i);
+          if (ch !== ' ') { ctx.fillStyle = HEAD; ctx.fillText(ch, c.x, c.y); }
+          c.y += cell; c.i = (c.i + 1) % c.line.length;
+          if (c.y > H + cell) { var line = MATRIX_LINES[rnd(MATRIX_LINES.length)]; c.y = -cell * rnd(8); c.line = line; c.i = 0; c.v = 0.1 + Math.random() * 0.18; }
+        }
+      }
+    }
+    function loop(ts) { raf = window.requestAnimationFrame(loop); if (ts - last < frameMs) return; last = ts; tick(); }
+    function stop() { running = false; window.cancelAnimationFrame(raf); }
+    function warm() { for (var f = 0; f < 140; f++) tick(); warmed = true; }       /* the static frame: enough ticks for a full, faded field of code */
+    function sync() {
+      if (!isDark()) { stop(); if (built) ctx.clearRect(0, 0, W, H); warmed = false; return; }     /* light mode: nothing drawn, nothing running */
+      if (!built) build();
+      if (still) { if (!warmed) warm(); return; }
+      if (!running && !doc.hidden) { running = true; last = 0; raf = window.requestAnimationFrame(loop); }
+    }
+    if (window.MutationObserver) new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['data-theme'] });   /* follows the theme toggle at once */
+    doc.addEventListener('visibilitychange', function () { if (doc.hidden) stop(); else sync(); });
+    var rt = 0; window.addEventListener('resize', function () { clearTimeout(rt); rt = window.setTimeout(function () { if (isDark()) { stop(); build(); sync(); } else built = false; }, 200); });
+    sync();
+    return { start: sync, stop: stop };
+  }
+
   /* ====================================================================== boot + public API */
   injectCss();
   var api = { version: '1.0', themeTransition: themeTransition, slide: slide, centerIcons: centerIcons, reveal: function () {} };
@@ -237,6 +334,8 @@
   function start() {
     try { api.reveal = initReveal(); } catch (e) { if (window.console) console.warn('[animations] reveal off:', e); }
     try { initCollapse(); } catch (e) { if (window.console) console.warn('[animations] collapse off:', e); }
+    try { initFlow(); } catch (e) { if (window.console) console.warn('[animations] flow guard off:', e); }
+    try { api.matrix = initMatrix(); } catch (e) { if (window.console) console.warn('[animations] matrix off:', e); }
     centerIcons();
     window.addEventListener('load', function () { centerIcons(); });
   }
