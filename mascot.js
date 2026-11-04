@@ -25,11 +25,11 @@
  *   Speech     idle tips, answers to the popup's ask box and checkout reassurance come from NikoraAssistant.speak() (ai-assistant.js: the live endpoint when
  *               configured, else the local engine, using the customer's chat history + remembered profile); built-in lines are only the fallback.
  *   Theme      light: obsidian body, gold #C89B54 outline, cream face. dark: cream-gold body, crisp obsidian face. Pure CSS on <html data-theme>, so it flips with the toggle.
- *   Autonomy   every 14-26 s it hops, wiggles, or points (head turn + gold arrow + a line) at the cart or the Bestsellers; emotions (cart joy, lab goggles, surprise) are 0 ms.
+ *   Autonomy   says hello with a hop on arrival, leans with the page scroll and hops when a long scroll stops, then every 8-15 s hops, wiggles, or points (head turn + gold arrow + a line) at the cart or the Bestsellers; emotions (cart joy, lab goggles, surprise) are 0 ms.
  *   Returning buyers start PINNED when localStorage 'nikora_has_purchased' is set (checkout.html sets it and fires 'nikora:order-complete'); an explicit pin choice always wins.
  *   Memory     a curation filter keeps only skin type, concerns, ingredients, avoid-list and preferences (see section 5a); NKMascot.curate(text) shows what it would keep.
  *   Layer      z-index 999999 so it stays crisp above cart drawers, modals and their blurred backdrops.
- *   Motion      gentle float + breathing, ear wiggles, eye blinks (all off for prefers-reduced-motion; paused while the tab is hidden).
+ *   Motion      gentle float + breathing, ear wiggles, eye blinks (floating and jumping are off for prefers-reduced-motion, which keeps blinks, glow and tips; paused while the tab is hidden).
  *   Reactions   joyful bounce when the bag count really goes up; "Lab Specialist" goggles + sparkles while the pointer is on a key ingredient
  *               (mark any element with data-nk-ingredient, optionally data-nk-lab="short fact" for a bubble); a helpful tip after 15 s idle (max 3 per visit).
  *   Memory      reads / writes the customer's skin type + concerns in this browser (localStorage 'nikora_profile'):
@@ -37,7 +37,7 @@
  *                 NKMascot.setProfile({ skinTypes:['dry'], concerns:['Barrier Repair'] })   or save a profile you already have
  *                 NKMascot.getProfile() / NKMascot.forget()     window event 'nikora:profile' fires on every change
  *   Click       opens a quick guidance popup; "Chat with the Concierge" calls window.openAiAssistant().
- *   Config      window.NK_MASCOT = { widget:true, side:'left'|'right', roam:true|false (false = always pinned), idleMs:15000, maxNudges:3, hideOn:[] }  (set before this file loads)
+ *   Config      window.NK_MASCOT = { widget:true, side:'left'|'right', roam:true|false (false = always pinned), idleMs:15000, maxNudges:3, hideOn:[], motion:'auto'|'full' (full = keep the jumping / floating even when the visitor's system asks for reduced motion) }  (set before this file loads)
  */
 (function () {
   'use strict';
@@ -176,11 +176,14 @@
 
   /* ====================================================================== 5. LIVE COMPANION (floating widget, reactions, memory) ====================================================================== */
   var CFG = (function () {
-    var d = { widget: true, side: 'left', idleMs: 15000, maxNudges: 3, hideOn: [], roam: true, autoStatic: true }, u = window.NK_MASCOT || {}, k;
+    var d = { widget: true, side: 'left', idleMs: 15000, maxNudges: 3, hideOn: [], roam: true, autoStatic: true, motion: 'auto' }, u = window.NK_MASCOT || {}, k;
     for (k in u) if (Object.prototype.hasOwnProperty.call(u, k)) d[k] = u[k];
     return d;
   })();
   var reduceMotion = function () { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); };
+  /* Motion policy. 'auto' follows the visitor's system setting: with "reduce motion" on the rabbit runs in CALM mode (no floating, jumping or travelling; it still blinks, glows, speaks and points).
+     window.NK_MASCOT = { motion: 'full' } keeps the playful motion for everyone. NKMascot.motion() tells which mode is active. */
+  function calm() { return reduceMotion() && CFG.motion !== 'full'; }
   function store(kind) {
     return {
       get: function (k) { try { return window[kind].getItem(k); } catch (e) { return null; } },
@@ -457,7 +460,7 @@
     '.nkm-char:focus-visible{outline:2px solid #E5BA73;outline-offset:6px;border-radius:16px;}',
     '.nkm-lean{display:block;transform:rotate(var(--nkm-lean,0deg));transform-origin:50% 90%;transition:transform .25s ease-out;}',
     '.nkm-jump{display:block;}',
-    '.nkm-float{display:block;animation:nkmFloatW 5s ease-in-out infinite;}',
+    '.nkm-float{display:block;transform-origin:50% 100%;animation:nkmFloatW 3.4s ease-in-out infinite;}',
     '.nkm-live{display:block;width:100%;height:auto;overflow:visible;filter:drop-shadow(0 8px 16px rgba(0,0,0,.18));}',
     '.nkm-live .nkm-shape{fill:var(--nkm-fill);stroke:var(--nkm-line);stroke-width:6.5;stroke-linejoin:round;stroke-linecap:round;}',
     '.nkm-live .nkm-cream{fill:var(--nkm-face);}',
@@ -542,14 +545,16 @@
     '.nkm-widget button:focus-visible,.nkm-widget a:focus-visible,.nkm-widget input:focus-visible{outline:2px solid #E5BA73;outline-offset:2px;}',
     '@keyframes nkmHop{0%{transform:translateY(0) scale(1,1)}20%{transform:translateY(0) scale(1.07,.92)}50%{transform:translateY(-17px) scale(.96,1.06)}78%{transform:translateY(0) scale(1.05,.94)}100%{transform:translateY(0) scale(1)}}',
     '@keyframes nkmNudge{0%,100%{transform:translateX(0)}50%{transform:translateX(6px)}}',
-    '@keyframes nkmFloatW{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}',
-    '@keyframes nkmBreathe{0%,100%{transform:scale(1,1)}50%{transform:scale(1.014,1.03)}}',
+    '@keyframes nkmFloatW{0%,100%{transform:translateY(0) rotate(-1.4deg)}50%{transform:translateY(-8px) rotate(1.4deg)}}',
+    '@keyframes nkmBreathe{0%,100%{transform:scale(1,1)}50%{transform:scale(1.02,1.045)}}',
     '@keyframes nkmWigL{0%,100%{transform:rotate(0)}25%{transform:rotate(-11deg)}55%{transform:rotate(6deg)}80%{transform:rotate(-3deg)}}',
     '@keyframes nkmWigR{0%,100%{transform:rotate(0)}25%{transform:rotate(11deg)}55%{transform:rotate(-6deg)}80%{transform:rotate(3deg)}}',
     '@keyframes nkmJoy{0%{transform:translateY(0) scale(1,1)}14%{transform:translateY(0) scale(1.1,.88)}40%{transform:translateY(-26px) scale(.95,1.08)}62%{transform:translateY(0) scale(1.07,.92)}78%{transform:translateY(-9px) scale(1)}100%{transform:translateY(0) scale(1)}}',
     '@keyframes nkmTwinkle{0%,100%{transform:scale(.4);opacity:.25}50%{transform:scale(1.15);opacity:1}}',
     '@keyframes nkmPop{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}',
-    '@media (prefers-reduced-motion:reduce){.nkm-float,.nkm-live .nkm-body,.nkm-widget.is-joy .nkm-jump,.nkm-widget.is-hop .nkm-jump,.nkm-widget.is-surprise .nkm-jump,.nkm-arrow svg,.nkm-live.is-wiggle .nkm-ear,.nkm-bubble,.nkm-pop,.nkm-widget.is-joy .nkm-spk,.nkm-widget.is-lab .nkm-spk{animation:none !important;}.nkm-widget.is-joy .nkm-spk,.nkm-widget.is-lab .nkm-spk{opacity:1;transform:none;}.nkm-stage.is-gliding,.nkm-live .nkm-tilt,.nkm-live .nkm-gaze,.nkm-lean{transition:none;}}'
+    /* reduced motion = CALM mode (unless NK_MASCOT.motion is 'full'): no floating, jumping, breathing or travelling; reactions become a soft gold glow */
+    '@keyframes nkmGlowPulse{0%,100%{filter:drop-shadow(0 8px 16px rgba(0,0,0,.18))}40%{filter:drop-shadow(0 0 3px rgba(229,186,115,1)) drop-shadow(0 0 16px rgba(229,186,115,.9)) drop-shadow(0 8px 16px rgba(0,0,0,.18))}}',
+    '@media (prefers-reduced-motion:reduce){.nkm-widget:not(.is-full-motion) :is(.nkm-float,.nkm-live .nkm-body,.nkm-jump,.nkm-arrow svg,.nkm-live.is-wiggle .nkm-ear,.nkm-bubble,.nkm-pop,.nkm-spk){animation:none !important;}.nkm-widget:not(.is-full-motion).is-joy .nkm-spk,.nkm-widget:not(.is-full-motion).is-lab .nkm-spk{opacity:1;transform:none;}.nkm-widget:not(.is-full-motion).is-joy .nkm-live,.nkm-widget:not(.is-full-motion).is-hop .nkm-live,.nkm-widget:not(.is-full-motion).is-surprise .nkm-live{animation:nkmGlowPulse .9s ease-out;}.nkm-widget:not(.is-full-motion) .nkm-stage.is-gliding,.nkm-widget:not(.is-full-motion) .nkm-live .nkm-tilt,.nkm-widget:not(.is-full-motion) .nkm-live .nkm-gaze,.nkm-widget:not(.is-full-motion) .nkm-lean{transition:none;}}'
   ].join('\n');
 
   var widget = { el: null, stage: null, live: null, bubble: null, pop: null, char: null, pin: null, lean: null, arrow: null };
@@ -690,27 +695,27 @@
   /* ---------- cursor tracking: head tilt + eyes follow the pointer (not when pinned, on touch, or with reduced motion) ---------- */
   function stopTrack() { trackPt = null; if (widget.live) { widget.live.style.setProperty('--nkm-tilt', '0deg'); widget.live.style.setProperty('--nkm-gx', '0'); widget.live.style.setProperty('--nkm-gy', '0'); } }
   function applyTrack() {
-    trackRaf = 0; if (!trackPt || !widget.live || quiet() || reduceMotion() || pointing) return;
+    trackRaf = 0; if (!trackPt || !widget.live || quiet() || calm() || pointing) return;
     var cx = pos.x + charW() / 2, cy = pos.y + charH() * 0.62, dx = trackPt.x - cx, dy = trackPt.y - cy;
     widget.live.style.setProperty('--nkm-tilt', (clamp(dx / (window.innerWidth * 0.4), -1, 1) * 10).toFixed(1) + 'deg');
     widget.live.style.setProperty('--nkm-gx', (clamp(dx / 160, -1, 1) * 2.6).toFixed(2));
     widget.live.style.setProperty('--nkm-gy', (clamp(dy / 160, -1, 1) * 2).toFixed(2));
   }
   function onPointer(e) {
-    if (e.pointerType === 'touch' || quiet() || reduceMotion() || pointing) return;
+    if (e.pointerType === 'touch' || quiet() || calm() || pointing) return;
     trackPt = { x: e.clientX, y: e.clientY };
     if (!trackRaf) trackRaf = window.requestAnimationFrame(applyTrack);
   }
 
   /* ---------- idle life: blink + ear wiggle (paused while the tab is hidden; wiggles stop when pinned) ---------- */
   function lifeLoop() {
-    if (reduceMotion() || !widget.live) return;
+    if (!widget.live) return;
     function blink() {
       if (doc.hidden) return;
       widget.live.classList.add('is-blink');
       window.setTimeout(function () { widget.live.classList.remove('is-blink'); if (Math.random() < 0.28) window.setTimeout(function () { widget.live.classList.add('is-blink'); window.setTimeout(function () { widget.live.classList.remove('is-blink'); }, 110); }, 150); }, 120);
     }
-    function wiggle() { if (doc.hidden || quiet()) return; widget.live.classList.add('is-wiggle'); window.setTimeout(function () { widget.live.classList.remove('is-wiggle'); }, 900); }
+    function wiggle() { if (doc.hidden || quiet() || calm()) return; widget.live.classList.add('is-wiggle'); window.setTimeout(function () { widget.live.classList.remove('is-wiggle'); }, 900); }
     (function loopB() { window.setTimeout(function () { blink(); loopB(); }, 2800 + Math.random() * 3200); })();
     (function loopW() { window.setTimeout(function () { wiggle(); loopW(); }, 7000 + Math.random() * 6000); })();
   }
@@ -720,7 +725,7 @@
     var n = Number(SS.get(NUDGE_KEY) || 0), max = onCheckout ? Math.max(CFG.maxNudges, 4) : CFG.maxNudges;
     if (n >= max || Date.now() - lastBubbleAt < 45000) return;
     SS.set(NUDGE_KEY, String(n + 1));
-    if (widget.live && !reduceMotion()) { widget.live.classList.add('is-wiggle'); window.setTimeout(function () { widget.live.classList.remove('is-wiggle'); }, 900); }
+    if (widget.live && !calm()) { widget.live.classList.add('is-wiggle'); window.setTimeout(function () { widget.live.classList.remove('is-wiggle'); }, 900); }
     dynamicLine(onCheckout ? 'reassure' : 'tip', { i: n }).then(function (r) {
       if (r) { say(onCheckout || r.source === 'live' ? r.text : (/^(Tip:|Mascot Note:)/.test(r.text) ? r.text : 'Tip: ' + r.text), { ask: r.ask, href: r.href, hrefLabel: r.hrefLabel }); return; }
       var note = onCheckout ? { text: reassureLine(n) } : (personalNote() || pageTip());
@@ -776,7 +781,7 @@
     widget.pop.hidden = true; widget.char.setAttribute('aria-expanded', 'false'); if (!skipFocus) widget.char.focus();
   }
 
-  /* ---------- autonomous behaviour: the rabbit does something on its own every 14-26 s (never when pinned, at checkout it only hops / wiggles) ---------- */
+  /* ---------- autonomous behaviour: the rabbit does something on its own every 8-15 s (never when pinned, at checkout it only hops / wiggles) ---------- */
   function setTilt(deg, gx, gy) {
     if (!widget.live) return;
     widget.live.style.setProperty('--nkm-tilt', deg.toFixed(1) + 'deg'); widget.live.style.setProperty('--nkm-gx', gx.toFixed(2)); widget.live.style.setProperty('--nkm-gy', gy.toFixed(2));
@@ -800,11 +805,11 @@
     if (text) say(text, { href: o.href, hrefLabel: o.hrefLabel, ms: o.ms || 4600, quiet: !o.href });
     return true;
   }
-  function scheduleAuto() { clearTimeout(autoTimer); if (widget.el && !reduceMotion()) autoTimer = window.setTimeout(runAuto, 14000 + Math.random() * 12000); }
+  function scheduleAuto(first) { clearTimeout(autoTimer); if (widget.el) autoTimer = window.setTimeout(runAuto, first ? 4500 : 8000 + Math.random() * 7000); }
   function runAuto() {
     scheduleAuto();
     if (doc.hidden || quiet() || (widget.pop && !widget.pop.hidden) || pointing || Date.now() - lastScroll < 1500 || Date.now() - lastBubbleAt < 6000) return;
-    var acts = ['hop', 'hop', 'wiggle'];
+    var acts = calm() ? ['hop'] : ['hop', 'hop', 'wiggle'];
     if (!onCheckout && !muted() && autoCount < 4) { if (cartEl()) acts.push('cart'); if (bestEl()) acts.push('best'); }
     var a = acts[Math.floor(Math.random() * acts.length)];
     if (a === 'hop') react('hop');
@@ -838,11 +843,16 @@
     doc.body.appendChild(el);
     widget.el = el; widget.stage = el.querySelector('.nkm-stage'); widget.bubble = el.querySelector('.nkm-bubble'); widget.pop = el.querySelector('.nkm-pop');
     widget.char = el.querySelector('.nkm-char'); widget.pin = el.querySelector('.nkm-pin'); widget.arrow = el.querySelector('.nkm-arrow'); widget.lean = el.querySelector('.nkm-lean'); widget.live = el.querySelector('.nkm-live');
-    el.classList.add('is-forced-dock');                                     /* hides the (now meaningless) pushpin button */
+    el.classList.add('is-forced-dock'); el.classList.toggle('is-full-motion', CFG.motion === 'full');                                     /* hides the (now meaningless) pushpin button */
     setPinned(userPinned, true);
     lift(); kick(true);
 
-    widget.char.addEventListener('click', function () { if (widget.pop.hidden) openPop(); else closePop(); });
+    widget.char.addEventListener('click', function () { react('hop'); if (widget.pop.hidden) openPop(); else closePop(); });
+    widget.char.addEventListener('pointerenter', function (e) {          /* hover: the ears wiggle (a soft glow in calm mode) */
+      if (e.pointerType === 'touch' || !widget.live) return;
+      if (calm()) { react('hop'); return; }
+      widget.live.classList.add('is-wiggle'); window.setTimeout(function () { widget.live.classList.remove('is-wiggle'); }, 900);
+    });
     widget.pin.addEventListener('click', function (e) { e.stopPropagation(); setPinned(!userPinned); });
     el.addEventListener('click', function (e) {
       var b = e.target.closest && e.target.closest('[data-nkm]'); if (!b) return;
@@ -864,8 +874,19 @@
     window.addEventListener('nikora:assistant-open', function () { closePop(true); hideBubble(); setClass('is-chat-open', true); });
     window.addEventListener('nikora:assistant-close', function () { setClass('is-chat-open', false); });
 
-    /* the rabbit is docked: scrolling only dismisses a pointing arrow, it never moves the rabbit; resize / orientation re-places it */
-    window.addEventListener('scroll', function () { lastScroll = Date.now(); if (pointing) endPoint(); }, { passive: true });
+    /* the rabbit is docked: scrolling never moves the rabbit out of its corner, it only dismisses a pointing arrow and makes it lean and hop; resize / orientation re-places it */
+    var lastY = window.pageYOffset || 0, scrollAcc = 0, scrollEnd = 0, lastScrollHop = 0;
+    window.addEventListener('scroll', function () {
+      lastScroll = Date.now(); if (pointing) endPoint();
+      var y = window.pageYOffset || doc.documentElement.scrollTop || 0, dy = y - lastY; lastY = y; scrollAcc += Math.abs(dy);
+      if (!calm() && widget.lean) widget.lean.style.setProperty('--nkm-lean', clamp(dy * 0.5, -9, 9).toFixed(1) + 'deg');   /* leans the way the page moves */
+      clearTimeout(scrollEnd);
+      scrollEnd = window.setTimeout(function () {                                  /* scrolling stopped: straighten up; after a long scroll, hop as if to say "found something?" */
+        if (widget.lean) widget.lean.style.setProperty('--nkm-lean', '0deg');
+        if (scrollAcc > 700 && Date.now() - lastScrollHop > 5000 && !doc.hidden && !quiet()) { lastScrollHop = Date.now(); react('hop'); }
+        scrollAcc = 0;
+      }, 180);
+    }, { passive: true });
     window.addEventListener('resize', function () { kick(true); });
     window.addEventListener('load', function () { kick(false); });
     window.addEventListener('pointermove', onPointer, { passive: true });
@@ -888,7 +909,14 @@
       markPurchased(); react('joy', { silent: true });
       say('Thank you! Your order is confirmed.', { force: true, quiet: true, ms: 7000 });
     });
-    window.setInterval(lift, 800); lifeLoop(); armIdle(); scheduleAuto();
+    window.setInterval(lift, 800); lifeLoop(); armIdle(); scheduleAuto(true);
+    /* hello: a hop (and an ear wiggle) a moment after the page opens, plus one short welcome line per tab session */
+    window.setTimeout(function () {
+      if (doc.hidden) return;
+      react('hop');
+      if (widget.live && !calm()) { widget.live.classList.add('is-wiggle'); window.setTimeout(function () { widget.live.classList.remove('is-wiggle'); }, 900); }
+      if (!onCheckout && !muted() && !SS.get('nkm_hello')) { SS.set('nkm_hello', '1'); say('Hi, I am the NIKORA Rabbit. Tap me if you need a hand!', { ms: 5200, quiet: true }); }
+    }, 1400);
     if (/page not found/i.test(doc.title || '')) react('surprise', { ms: 1800 });
     /* checkout: the rabbit is there to reassure, with one friendly line a few seconds after the page opens */
     if (onCheckout && !quiet() && !muted() && !SS.get('nkm_ck_hello')) {
@@ -898,14 +926,15 @@
   }
 
   injectCss();
-  var api = { version: '1.0', svg: svg, tip: tip, help: help, empty: empty, enhance: enhance, poses: Object.keys(POSES),
+  var api = { version: '1.1', svg: svg, tip: tip, help: help, empty: empty, enhance: enhance, poses: Object.keys(POSES),
     learn: learn, setProfile: setProfile, getProfile: getProfile, forget: forget, say: say, react: react, open: openAssistant,
-    curate: curate, looksUseful: looksUseful, allowed: allowed, markPurchased: markPurchased, point: pointAt };
+    curate: curate, looksUseful: looksUseful, allowed: allowed, markPurchased: markPurchased, point: pointAt,
+    hop: function () { react('hop'); }, motion: function () { return calm() ? 'calm' : 'full'; } };
   window.NKMascot = api;
 
   function start() {
     enhance(doc.body);
-    initCompanion();
+    try { initCompanion(); } catch (err) { if (window.console) console.warn('[mascot] live companion failed to start:', err); }
     if (window.MutationObserver) {
       var queue = [], raf = 0;
       new MutationObserver(function (list) {

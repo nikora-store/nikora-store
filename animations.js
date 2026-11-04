@@ -224,7 +224,7 @@
       if (!el.id || el.hasAttribute('data-nk-native') || el.closest('.nkn-header,.nkn-drawer,#cart-drawer')) return false;
       var pos = window.getComputedStyle(el).position;
       if (pos === 'absolute' || pos === 'fixed') return false;
-      return !!doc.querySelector('[aria-controls="' + (window.CSS && CSS.escape ? CSS.escape(el.id) : el.id) + '"][aria-expanded]');
+      try { return !!doc.querySelector('[aria-controls="' + (window.CSS && typeof window.CSS.escape === 'function' ? window.CSS.escape(el.id) : el.id) + '"][aria-expanded]'); } catch (e) { return false; }   /* window.CSS: the local var CSS above is the stylesheet text */
     }
     new MutationObserver(function (list) {
       list.forEach(function (m) {
@@ -287,7 +287,7 @@
 
   /* ====================================================================== boot + public API */
   injectCss();
-  var api = { version: '1.0', themeTransition: themeTransition, slide: slide, centerIcons: centerIcons, reveal: function () {} };
+  var api = { version: '1.1', themeTransition: themeTransition, slide: slide, centerIcons: centerIcons, reveal: function () {} };
   window.NKAnimations = api;
   function start() {
     try { api.reveal = initReveal(); } catch (e) { if (window.console) console.warn('[animations] reveal off:', e); }
