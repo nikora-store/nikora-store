@@ -20,12 +20,13 @@
  * Opt out of an automatic upgrade with data-nk-mascot-off.
  *
  * LIVE COMPANION (v3): a free-standing solid rabbit (obsidian body, gold #C89B54 outline, soft drop-shadow, no button disc) on every page, checkout included.
- *   Modes      DOCKED: fixed in the bottom corner of the screen, never moves with the page scroll (roam / pin retired, pushpin hidden). Legacy note:
+ *   Modes      ROAMING GUIDE: it rests in the bottom corner, but travels across the viewport to point at buttons and sections (gold ring + speech bubble), wanders between screen edges when idle, and offers a "Show me around" tour (section 5c). At checkout it never roams. Legacy note:
  *               (saved in localStorage 'nikora_mascot_pinned'). At checkout it is always docked in the corner so it never sits over the payment form.
  *   Speech     idle tips, answers to the popup's ask box and checkout reassurance come from NikoraAssistant.speak() (ai-assistant.js: the live endpoint when
  *               configured, else the local engine, using the customer's chat history + remembered profile); built-in lines are only the fallback.
  *   Theme      light: obsidian body, gold #C89B54 outline, cream face. dark: cream-gold body, crisp obsidian face. Pure CSS on <html data-theme>, so it flips with the toggle.
  *   Autonomy   says hello with a hop on arrival, leans with the page scroll and hops when a long scroll stops, then every 8-15 s hops, wiggles, or points (head turn + gold arrow + a line) at the cart or the Bestsellers; emotions (cart joy, lab goggles, surprise) are 0 ms.
+ *   Guide      proactive scenes per page (arrival, idle), hints after cart adds / cart open / search focus / filter clicks, exit intent, a "where is ...?" finder in the ask box and a guided tour; NKMascot.guide.show(el, text), .tour(), .home(), .wander() for your own pages.
  *   Returning buyers start PINNED when localStorage 'nikora_has_purchased' is set (checkout.html sets it and fires 'nikora:order-complete'); an explicit pin choice always wins.
  *   Memory     a curation filter keeps only skin type, concerns, ingredients, avoid-list and preferences (see section 5a); NKMascot.curate(text) shows what it would keep.
  *   Layer      z-index 999999 so it stays crisp above cart drawers, modals and their blurred backdrops.
@@ -37,7 +38,7 @@
  *                 NKMascot.setProfile({ skinTypes:['dry'], concerns:['Barrier Repair'] })   or save a profile you already have
  *                 NKMascot.getProfile() / NKMascot.forget()     window event 'nikora:profile' fires on every change
  *   Click       opens a quick guidance popup; "Chat with the Concierge" calls window.openAiAssistant().
- *   Config      window.NK_MASCOT = { widget:true, side:'left'|'right', roam:true|false (false = always pinned), idleMs:15000, maxNudges:3, hideOn:[], motion:'auto'|'full' (full = keep the jumping / floating even when the visitor's system asks for reduced motion) }  (set before this file loads)
+ *   Config      window.NK_MASCOT = { widget:true, side:'left'|'right', roam:true|false (false = always pinned), idleMs:15000, maxNudges:3, hideOn:[], guide:true|false (false = no proactive messages or roaming), motion:'auto'|'full' (full = keep the jumping / floating even when the visitor's system asks for reduced motion) }  (set before this file loads)
  */
 (function () {
   'use strict';
@@ -176,7 +177,7 @@
 
   /* ====================================================================== 5. LIVE COMPANION (floating widget, reactions, memory) ====================================================================== */
   var CFG = (function () {
-    var d = { widget: true, side: 'left', idleMs: 15000, maxNudges: 3, hideOn: [], roam: true, autoStatic: true, motion: 'auto' }, u = window.NK_MASCOT || {}, k;
+    var d = { widget: true, side: 'left', idleMs: 15000, maxNudges: 3, hideOn: [], roam: true, autoStatic: true, motion: 'auto', guide: true }, u = window.NK_MASCOT || {}, k;
     for (k in u) if (Object.prototype.hasOwnProperty.call(u, k)) d[k] = u[k];
     return d;
   })();
@@ -543,6 +544,13 @@
     '.nkm-foot button{padding:0;border:0;background:none;color:rgba(247,244,240,.55);font:inherit;font-size:11px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;}',
     '.nkm-foot button:hover{color:#F7F4F0;}',
     '.nkm-widget button:focus-visible,.nkm-widget a:focus-visible,.nkm-widget input:focus-visible{outline:2px solid #E5BA73;outline-offset:2px;}',
+    /* roaming guide: gold ring around the thing it points at, bounding hops while it travels, button-style chip */
+    '.nkm-chip-btn{background:none;font-family:inherit;cursor:pointer;}',
+    '.nkm-ring{position:absolute;box-sizing:border-box;pointer-events:none;border:2px solid #E5BA73;border-radius:14px;box-shadow:0 0 0 4px rgba(200,155,84,.2),0 0 24px rgba(229,186,115,.55);animation:nkmRing 1.3s ease-in-out infinite;}',
+    '.nkm-ring[hidden]{display:none;}',
+    '.nkm-widget.is-travel .nkm-jump{animation:nkmTravel .46s ease-in-out infinite;}',
+    '@keyframes nkmRing{0%,100%{box-shadow:0 0 0 3px rgba(200,155,84,.2),0 0 14px rgba(229,186,115,.4)}50%{box-shadow:0 0 0 8px rgba(200,155,84,.12),0 0 30px rgba(229,186,115,.8)}}',
+    '@keyframes nkmTravel{0%,100%{transform:translateY(0) scale(1,1)}22%{transform:translateY(0) scale(1.06,.93)}55%{transform:translateY(-12px) scale(.96,1.06)}}',
     '@keyframes nkmHop{0%{transform:translateY(0) scale(1,1)}20%{transform:translateY(0) scale(1.07,.92)}50%{transform:translateY(-17px) scale(.96,1.06)}78%{transform:translateY(0) scale(1.05,.94)}100%{transform:translateY(0) scale(1)}}',
     '@keyframes nkmNudge{0%,100%{transform:translateX(0)}50%{transform:translateX(6px)}}',
     '@keyframes nkmFloatW{0%,100%{transform:translateY(0) rotate(-1.4deg)}50%{transform:translateY(-8px) rotate(1.4deg)}}',
@@ -554,7 +562,7 @@
     '@keyframes nkmPop{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}',
     /* reduced motion = CALM mode (unless NK_MASCOT.motion is 'full'): no floating, jumping, breathing or travelling; reactions become a soft gold glow */
     '@keyframes nkmGlowPulse{0%,100%{filter:drop-shadow(0 8px 16px rgba(0,0,0,.18))}40%{filter:drop-shadow(0 0 3px rgba(229,186,115,1)) drop-shadow(0 0 16px rgba(229,186,115,.9)) drop-shadow(0 8px 16px rgba(0,0,0,.18))}}',
-    '@media (prefers-reduced-motion:reduce){.nkm-widget:not(.is-full-motion) :is(.nkm-float,.nkm-live .nkm-body,.nkm-jump,.nkm-arrow svg,.nkm-live.is-wiggle .nkm-ear,.nkm-bubble,.nkm-pop,.nkm-spk){animation:none !important;}.nkm-widget:not(.is-full-motion).is-joy .nkm-spk,.nkm-widget:not(.is-full-motion).is-lab .nkm-spk{opacity:1;transform:none;}.nkm-widget:not(.is-full-motion).is-joy .nkm-live,.nkm-widget:not(.is-full-motion).is-hop .nkm-live,.nkm-widget:not(.is-full-motion).is-surprise .nkm-live{animation:nkmGlowPulse .9s ease-out;}.nkm-widget:not(.is-full-motion) .nkm-stage.is-gliding,.nkm-widget:not(.is-full-motion) .nkm-live .nkm-tilt,.nkm-widget:not(.is-full-motion) .nkm-live .nkm-gaze,.nkm-widget:not(.is-full-motion) .nkm-lean{transition:none;}}'
+    '@media (prefers-reduced-motion:reduce){.nkm-widget:not(.is-full-motion) :is(.nkm-float,.nkm-live .nkm-body,.nkm-jump,.nkm-arrow svg,.nkm-live.is-wiggle .nkm-ear,.nkm-bubble,.nkm-pop,.nkm-spk,.nkm-ring){animation:none !important;}.nkm-widget:not(.is-full-motion).is-joy .nkm-spk,.nkm-widget:not(.is-full-motion).is-lab .nkm-spk{opacity:1;transform:none;}.nkm-widget:not(.is-full-motion).is-joy .nkm-live,.nkm-widget:not(.is-full-motion).is-hop .nkm-live,.nkm-widget:not(.is-full-motion).is-surprise .nkm-live{animation:nkmGlowPulse .9s ease-out;}.nkm-widget:not(.is-full-motion) .nkm-stage.is-gliding,.nkm-widget:not(.is-full-motion) .nkm-live .nkm-tilt,.nkm-widget:not(.is-full-motion) .nkm-live .nkm-gaze,.nkm-widget:not(.is-full-motion) .nkm-lean{transition:none;}}'
   ].join('\n');
 
   var widget = { el: null, stage: null, live: null, bubble: null, pop: null, char: null, pin: null, lean: null, arrow: null };
@@ -568,7 +576,7 @@
 
   function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
   function muted() { return Number(LS.get(MUTE_KEY) || 0) > Date.now(); }
-  function docked() { return true; }               /* always docked: no scroll-driven roaming any more */               /* pinned by the customer, or checkout (never roams over the payment form) */
+  function docked() { return !roamPos; }               /* always docked: no scroll-driven roaming any more */               /* pinned by the customer, or checkout (never roams over the payment form) */
   function quiet() { return userPinned; }                              /* quiet = no unsolicited bubbles, no head tracking, no extra motion */
   function charW() { return window.innerWidth <= 640 ? 54 : 66; }
   function charH() { return Math.round(charW() * 133 / 101.2); }
@@ -588,22 +596,24 @@
     var vw = window.innerWidth, vh = window.innerHeight, W = charW(), H = charH();
     var right = CFG.side === 'right';
     /* DOCKED: the mascot is position:fixed inside a fixed layer and always sits at the same screen spot; the page scroll offset is never read. */
+    if (roamPos) return { x: clamp(roamPos.x, 8, Math.max(8, vw - W - 8)), y: clamp(roamPos.y, 8, Math.max(8, vh - H - 8)) };   /* sent somewhere by the guide (section 5c) */
     return { x: right ? vw - W - 16 : 16, y: Math.max(8, vh - H - 16 - liftPx) };
   }
   function place() {
     if (!widget.stage) return;
     var vw = window.innerWidth;
     widget.stage.style.transform = 'translate3d(' + pos.x.toFixed(1) + 'px,' + pos.y.toFixed(1) + 'px,0)';
-    widget.stage.setAttribute('data-h', pos.x + charW() / 2 > vw * 0.55 ? 'r' : 'l');
-    widget.stage.setAttribute('data-v', pos.y < 230 ? 'd' : 'u');
+    widget.stage.setAttribute('data-h', guideH || (pos.x + Math.min(310, vw - 32) <= vw - 8 ? 'l' : 'r'));
+    widget.stage.setAttribute('data-v', guideV || (pos.y > window.innerHeight - pos.y - charH() ? 'u' : 'd'));
   }
   function frame() {
     roamRaf = 0;
-    var t = target(), k = reduceMotion() ? 1 : 0.1, dx = t.x - pos.x, dy = t.y - pos.y;
+    var t = target(), k = calm() ? 1 : 0.085, dx = t.x - pos.x, dy = t.y - pos.y;
     pos.x += dx * k; pos.y += dy * k; place();
-    if (widget.lean) widget.lean.style.setProperty('--nkm-lean', clamp(dy * 0.22, -9, 9).toFixed(1) + 'deg');
+    setClass('is-travel', !calm() && (Math.abs(dx) > 26 || Math.abs(dy) > 26));                 /* little bounding hops while it travels */
+    if (widget.lean) widget.lean.style.setProperty('--nkm-lean', clamp(dx * 0.05 + dy * 0.12, -12, 12).toFixed(1) + 'deg');
     if (Math.abs(dx) > 0.4 || Math.abs(dy) > 0.4) roamRaf = window.requestAnimationFrame(frame);
-    else { pos.x = t.x; pos.y = t.y; place(); if (widget.lean) widget.lean.style.setProperty('--nkm-lean', '0deg'); }
+    else { pos.x = t.x; pos.y = t.y; place(); setClass('is-travel', false); if (widget.lean) widget.lean.style.setProperty('--nkm-lean', '0deg'); }
   }
   function kick(snap) {
     if (!widget.stage) return;
@@ -647,7 +657,8 @@
     var html = m ? '<b>' + esc(m[1]) + '</b> ' + esc(m[2]) : esc(plain);
     if (o.ask) html += '<br><button type="button" class="nkm-b-act" data-nkm="ask">Ask the Concierge</button>';
     if (o.href) html += '<br><a class="nkm-b-act" href="' + esc(safeHref(o.href)) + '">' + esc(o.hrefLabel || 'Take me there') + '</a>';
-    if (o.quiet !== true && (o.ask || o.href)) html += '<button type="button" class="nkm-b-act" data-nkm="mute">Hide tips</button>';
+    if (o.actions) html += '<br>' + o.actions.map(function (a) { return '<button type="button" class="nkm-b-act" data-nkm="' + esc(a.act) + '">' + esc(a.label) + '</button>'; }).join('');
+    if (o.mute || (o.quiet !== true && (o.ask || o.href))) html += '<button type="button" class="nkm-b-act" data-nkm="mute">Hide tips</button>';
     widget.bubble.innerHTML = html + '<button type="button" class="nkm-x" data-nkm="close" aria-label="Dismiss">\u00d7</button>';
     widget.bubble.hidden = false; lastBubbleAt = Date.now();
     clearTimeout(bubbleTimer);
@@ -737,7 +748,7 @@
     if (quiet()) return;
     idleTimer = window.setTimeout(function () {
       if (doc.hidden || muted() || quiet() || (widget.pop && !widget.pop.hidden)) return;
-      showNudge();
+      if (!guiding && !tour.on) showNudge();
     }, CFG.idleMs);
   }
   function onActivity() { var t = Date.now(); if (t - lastActivity < 400) return; lastActivity = t; armIdle(); }
@@ -749,6 +760,7 @@
     chips.push('<a class="nkm-chip" href="catalog.html?filter=bestsellers">Bestsellers</a>');
     if (p && p.concerns.indexOf('Hydration') >= 0) chips.push('<a class="nkm-chip" href="catalog.html?concern=Hydration">Hydration picks</a>');
     chips.push('<a class="nkm-chip" href="track-order.html">Track an order</a>');
+    chips.push('<button type="button" class="nkm-chip nkm-chip-btn" data-nkm="tour">Show me around</button>');
     var intro = onCheckout ? reassureLine(0) : (note ? note.text.replace(/^Mascot Note:\s*/, '') : 'Hi, I am the NIKORA Rabbit. Ask me about a product or routine, and tell the Concierge your skin type so I can remember it.');
     return '<button type="button" class="nkm-x" data-nkm="closepop" aria-label="Close">\u00d7</button>' +
       '<p class="nkm-pop-h">' + (note && !onCheckout ? 'Mascot Note' : 'NIKORA Rabbit') + (p ? ' \u00b7 ' + esc(profileLabel(p)) : '') + '</p>' +
@@ -761,6 +773,7 @@
       '<button type="button" data-nkm="' + (muted() ? 'unmute' : 'mute') + '">' + (muted() ? 'Show tips' : 'Hide tips') + '</button></div>';
   }
   function askRabbit(q) {
+    if (guideIntent(q)) { var ans = widget.pop && widget.pop.querySelector('.nkm-answer'); if (ans) ans.textContent = 'Let me show you.'; return; }   /* "where is ...?" questions: the rabbit walks over and points */
     var out = widget.pop.querySelector('.nkm-answer'); if (!out) return;
     q = String(q || '').replace(/\s+/g, ' ').trim().slice(0, 160); if (!q) return;
     learn(q);                                                           /* "I have dry skin" typed here is remembered too */
@@ -808,9 +821,9 @@
   function scheduleAuto(first) { clearTimeout(autoTimer); if (widget.el) autoTimer = window.setTimeout(runAuto, first ? 4500 : 8000 + Math.random() * 7000); }
   function runAuto() {
     scheduleAuto();
-    if (doc.hidden || quiet() || (widget.pop && !widget.pop.hidden) || pointing || Date.now() - lastScroll < 1500 || Date.now() - lastBubbleAt < 6000) return;
+    if (doc.hidden || quiet() || (widget.pop && !widget.pop.hidden) || pointing || guiding || tour.on || Date.now() - lastScroll < 1500 || Date.now() - lastBubbleAt < 6000) return;
     var acts = calm() ? ['hop'] : ['hop', 'hop', 'wiggle'];
-    if (!onCheckout && !muted() && autoCount < 4) { if (cartEl()) acts.push('cart'); if (bestEl()) acts.push('best'); }
+    /* pointing at the cart / Bestsellers is now the guide's job (section 5c) */
     var a = acts[Math.floor(Math.random() * acts.length)];
     if (a === 'hop') react('hop');
     else if (a === 'wiggle') { widget.live.classList.add('is-wiggle'); window.setTimeout(function () { widget.live.classList.remove('is-wiggle'); }, 900); }
@@ -824,6 +837,353 @@
     if (v !== liftPx) { liftPx = v; kick(false); }
   }
   function refreshDot() { /* the free-standing rabbit has no badge; kept so profile changes can call it */ }
+
+  /* ====================================================================== 5c. ROAMING GUIDE ======================================================================
+     The rabbit travels across the viewport (roamPos = where it should stand; frame() glides it there), stands next to the button or section it is talking about,
+     draws a gold ring around it and speaks in its bubble. Messages come from three places: "scenes" per page (arrival, idle), reactions to what the visitor does
+     (cart add, cart open, search focus, filter click, exit intent) and the visitor's own questions ("where is ...?" in the ask box, the "Show me around" tour).
+     Nothing roams at checkout; "Hide tips" silences every proactive message; reduced motion makes moves instant (calm mode). */
+  var roamPos = null, guideV = null, guideH = null, guiding = false, ringEl = null, ringTarget = null, ringRaf = 0;
+  var guideEnd = 0, settleTimer = 0, lastSceneAt = 0, lastWanderAt = 0, scenesPlayed = 0, genericPlayed = 0, cartHints = 0;
+  var tour = { on: false, steps: [], i: -1 };
+  var PAGE = (function () { var f = location.pathname.split('/').pop().toLowerCase().replace(/\.html$/, ''); return f || 'index'; })();
+  var SEEN_KEY = 'nkg_seen';
+  var GENERIC = ['Free Express Shipping on every order, with tracking once it ships.', 'Every order has a 30-Day Money-Back Guarantee on unopened items.',
+    'Tell the Beauty Concierge your skin type and I will remember it for next time.', 'New here? I can walk you through the store in under a minute.'];
+
+  function ext(a, b) { var k; for (k in b) if (Object.prototype.hasOwnProperty.call(b, k)) a[k] = b[k]; return a; }
+  function dur(t) { return Math.min(14000, Math.max(5200, String(t).length * 75)); }
+  function moveSoon() { if (!roamRaf) roamRaf = window.requestAnimationFrame(frame); }
+  function readSeen() { try { return JSON.parse(SS.get(SEEN_KEY) || '[]') || []; } catch (e) { return []; } }
+  function markSeen(id) { var a = readSeen(); if (a.indexOf(id) < 0) { a.push(id); SS.set(SEEN_KEY, JSON.stringify(a.slice(-60))); } }
+
+  /* ---- finding things on the page (works without knowing each page's markup) ---- */
+  function inView(r) { return r.bottom > 24 && r.top < window.innerHeight - 24 && r.right > 0 && r.left < window.innerWidth; }
+  function vis(el, strict) {
+    if (!el || !el.getBoundingClientRect || (el.closest && el.closest('.nkm-widget'))) return false;
+    var r = el.getBoundingClientRect(); if (r.width < 6 || r.height < 6) return false;
+    var cs = window.getComputedStyle(el); if (cs.visibility === 'hidden' || cs.display === 'none') return false;
+    return strict ? inView(r) : true;
+  }
+  function pickEl(sel, strict) { var l = doc.querySelectorAll(sel), i; for (i = 0; i < l.length; i++) if (vis(l[i], strict !== false)) return l[i]; return null; }
+  function textEl(re, scope, strict) {
+    var l = (scope || doc).querySelectorAll('a,button,[role="button"]'), i, t;
+    for (i = 0; i < l.length; i++) { t = (l[i].textContent || '').replace(/\s+/g, ' ').trim(); if (t && t.length < 40 && re.test(t) && vis(l[i], strict !== false)) return l[i]; }
+    return null;
+  }
+  function navEl(file) { return pickEl('.nkn-primary a[href*="' + file + '"]'); }
+  function burgerEl() { return pickEl('#mobile-menu-btn'); }
+  function nav(file) { return function () { return navEl(file) || burgerEl(); }; }
+  function cartBtn() { return pickEl('#open-cart-btn', false); }
+  function bestEl2() { return pickEl('[data-nk-point="bestsellers"],#bestseller,a[href*="filter=bestsellers"]'); }
+  function addBtn() { return pickEl('#add-to-cart-btn,#mcta-add-btn,[data-bs-add],.btn-add-cart') || textEl(/^add to (bag|cart)/i); }
+  function cardEl() { return pickEl('.product-card,.nk-card'); }
+  function searchEl() { return pickEl('input[type="search"],input[placeholder*="earch" i],#search-input,#catalog-search'); }
+  function filterEl() { return pickEl('.f-chips-wrap,.filter-bar,.catalog-controls,.toolbar-wrap,.search-filter-container,.rv-toolbar,.r-tabs-wrap'); }
+  function formInput() { return pickEl('main input[type="text"],main input[type="email"],main input:not([type])'); }
+  function mm(el, label, text) { return el && el.id === 'mobile-menu-btn' ? 'Open the menu and tap ' + label + '. ' + text : text; }
+
+  /* ---- the ring around the thing being pointed at ---- */
+  function ringOff() { if (ringRaf) window.cancelAnimationFrame(ringRaf); ringRaf = 0; if (ringEl && ringEl.parentNode) ringEl.parentNode.removeChild(ringEl); ringEl = null; ringTarget = null; }
+  function ringLoop() {
+    ringRaf = 0;
+    if (!ringEl || !ringTarget) return;
+    var r = ringTarget.getBoundingClientRect();
+    if (r.width < 4 || !inView(r)) ringEl.hidden = true;
+    else { ringEl.hidden = false; ringEl.style.left = (r.left - 5) + 'px'; ringEl.style.top = (r.top - 5) + 'px'; ringEl.style.width = (r.width + 10) + 'px'; ringEl.style.height = (r.height + 10) + 'px'; }
+    ringRaf = window.requestAnimationFrame(ringLoop);
+  }
+  function ringOn(el, on) {
+    ringOff();
+    if (!on || !widget.el) return;
+    var br = parseFloat(window.getComputedStyle(el).borderTopLeftRadius) || 0, r = el.getBoundingClientRect();
+    ringEl = doc.createElement('div'); ringEl.className = 'nkm-ring'; ringEl.setAttribute('aria-hidden', 'true');
+    ringEl.style.borderRadius = br >= Math.min(r.width, r.height) / 2 - 1 ? '999px' : (br + 5) + 'px';
+    widget.el.insertBefore(ringEl, widget.stage); ringTarget = el; ringLoop();
+  }
+
+  /* ---- where to stand: next to the target, never on top of it, with room for the bubble ---- */
+  function spotFor(r, el) {
+    var vw = window.innerWidth, vh = window.innerHeight, W = charW(), H = charH(), m = 8, g = 14, bw = Math.min(310, vw - 32), bh = 130;
+    var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    var hdr = !!(el.closest && el.closest('.nkn-header')), wide = r.width > r.height * 2.4 || r.width > vw * 0.5;
+    var east = { x: r.right + g, y: cy - H / 2, h: 'l' }, west = { x: r.left - g - W, y: cy - H / 2, h: 'r' };
+    var south = { x: cx - W / 2, y: r.bottom + g, v: 'd' }, north = { x: cx - W / 2, y: r.top - g - H, v: 'u' };
+    var order = hdr ? [south, east, west, north] : (wide ? [south, north, east, west] : [east, west, south, north]);
+    var i, c, best = null, okX, okY, okH, okV, hit;
+    for (i = 0; i < order.length; i++) {
+      c = order[i];
+      c.h = c.h || (c.x + bw <= vw - m ? 'l' : 'r');
+      c.v = c.v || (c.y > vh - c.y - H ? 'u' : 'd');
+      okX = c.x >= m && c.x <= vw - W - m; okY = c.y >= m && c.y <= vh - H - m;
+      okH = c.h === 'l' ? c.x + bw <= vw - m : c.x + W - bw >= m;
+      okV = c.v === 'u' ? c.y - m >= bh : vh - (c.y + H) - m >= bh;
+      hit = c.x < r.right + 4 && c.x + W > r.left - 4 && c.y < r.bottom + 4 && c.y + H > r.top - 4;
+      if (okX && okY && okH && okV && !hit) return c;
+      if (!best && okX && okY && !hit) best = c;
+    }
+    c = best || order[0];
+    return { x: clamp(c.x, m, vw - W - m), y: clamp(c.y, m, vh - H - m), h: c.h, v: c.v };
+  }
+  function anchors() {                                                   /* resting places along the screen edges (first = the bottom corner dock) */
+    var vw = window.innerWidth, vh = window.innerHeight, W = charW(), H = charH(), L = 16, R = vw - W - 16, B = Math.max(8, vh - H - 16 - liftPx), right = CFG.side === 'right';
+    var out = [{ x: right ? R : L, y: B }, { x: right ? L : R, y: B }];
+    if (vw > 640) out.push({ x: L, y: Math.round(vh * 0.5 - H / 2) }, { x: R, y: Math.round(vh * 0.5 - H / 2) }, { x: R, y: Math.round(vh * 0.28) });
+    return out;
+  }
+  function goHome() { clearTimeout(settleTimer); roamPos = null; guideV = null; guideH = null; moveSoon(); }
+  function wander() {                                                    /* idle life: stroll to another edge of the screen */
+    if (onCheckout || !widget.stage || (widget.pop && !widget.pop.hidden)) return;
+    var a = anchors(), far = [], i;
+    for (i = 0; i < a.length; i++) if (Math.abs(a[i].x - pos.x) + Math.abs(a[i].y - pos.y) > 120) far.push(a[i]);
+    if (!far.length) return;
+    var t = far[Math.floor(Math.random() * far.length)];
+    lastWanderAt = Date.now(); guideV = null; guideH = null; roamPos = (t === a[0]) ? null : { x: t.x, y: t.y }; moveSoon();
+  }
+  function settle() {                                                    /* after pointing: step back to the nearest resting place so it never sits on content */
+    if (guiding || tour.on || !widget.stage || (widget.pop && !widget.pop.hidden)) return;
+    var a = anchors(), best = a[0], d = 1e9, i, dd;
+    for (i = 0; i < a.length; i++) { dd = Math.abs(a[i].x - pos.x) + Math.abs(a[i].y - pos.y); if (dd < d) { d = dd; best = a[i]; } }
+    roamPos = (best === a[0]) ? null : { x: best.x, y: best.y }; moveSoon();
+  }
+  function endGuide(stay) {
+    clearTimeout(guideEnd); guiding = false; ringOff(); guideV = null; guideH = null; endPoint(); place();
+    if (!stay && !tour.on) { clearTimeout(settleTimer); settleTimer = window.setTimeout(settle, 2200); }
+  }
+
+  /** Walk to an element, ring it and say something. o: { force (ignore "Hide tips"), mute (add a Hide tips link), scroll (scroll it into view first), ring:false, ms, href, hrefLabel, ask, actions }. */
+  function guideShow(el, text, o) {
+    o = o || {};
+    if (!el || !widget.stage || onCheckout || !doc.contains(el) || !vis(el, false)) return false;
+    if (!o.force && (muted() || quiet())) return false;
+    var r = el.getBoundingClientRect();
+    if (!inView(r)) {
+      if (!o.scroll || o.tried) return false;
+      o.tried = true;
+      try { el.scrollIntoView({ block: 'center', behavior: calm() ? 'auto' : 'smooth' }); } catch (e) { el.scrollIntoView(); }
+      window.setTimeout(function () { guideShow(el, text, o); }, calm() ? 80 : 700);
+      return true;
+    }
+    clearTimeout(settleTimer); clearTimeout(guideEnd); closePop(true);
+    var sp = spotFor(r, el), ms = o.ms || dur(text), delay = calm() ? 0 : 750, W = charW(), H = charH();
+    guideV = sp.v; guideH = sp.h; roamPos = { x: sp.x, y: sp.y }; guiding = true; moveSoon();
+    ringOn(el, o.ring !== false);
+    window.setTimeout(function () {                                      /* it has arrived: turn the head toward the target and speak */
+      if (!guiding) return;
+      var dx = r.left + r.width / 2 - (sp.x + W / 2), dy = r.top + r.height / 2 - (sp.y + H / 2);
+      pointing = true; setTilt(clamp(dx / 220, -1, 1) * 14, clamp(dx / 120, -1, 1) * 2.8, clamp(dy / 120, -1, 1) * 2.2);
+      clearTimeout(pointTimer); pointTimer = window.setTimeout(endPoint, ms);
+      if (text) say(text, { ms: ms, force: o.force, mute: o.mute, ask: o.ask, href: o.href, hrefLabel: o.hrefLabel, actions: o.actions, quiet: !(o.mute || o.ask || o.href) });
+    }, delay);
+    guideEnd = window.setTimeout(function () { endGuide(); }, ms + delay + 400);
+    return true;
+  }
+  /** A bubble from where it stands (no travelling), with a little hop. */
+  function guideSay(text, o) {
+    o = ext({ ms: dur(text) }, o || {});
+    if (!o.force && (muted() || quiet())) return;
+    react('hop'); say(text, o);
+  }
+
+  /* ---- scenes: what the rabbit says on each page, on its own ---- */
+  function sc(id, when, find, text, o) { return ext({ id: PAGE + ':' + id, when: when, find: find, text: text }, o || {}); }
+  function navSc(id, when, file, label, text) { return sc(id, when, nav(file), function (el) { return mm(el, label, text); }); }
+  function scenes() {
+    var L = [];
+    switch (PAGE) {
+      case 'index':
+        L.push(sc('shop', 'arrive', nav('catalog.html'), function (el) { return mm(el, 'Shop', 'Welcome to NIKORA. Tap Shop to browse the whole collection.'); }));
+        L.push(sc('best', 'idle', bestEl2, 'Most people start with the Bestsellers. Want a look?', { href: 'catalog.html?filter=bestsellers', hrefLabel: 'Show me' }));
+        L.push(navSc('rev', 'idle', 'reviews.html', 'Reviews', 'Real routines from real customers live here.'));
+        L.push(navSc('sci', 'idle', 'science.html', 'Science', 'Curious how it works? The Science page explains every device.'));
+        L.push(navSc('trk', 'idle', 'track-order.html', 'Track Order', 'Already ordered? Track your parcel here anytime.'));
+        break;
+      case 'catalog':
+        L.push(sc('filters', 'arrive', function () { return filterEl() || searchEl(); }, 'Narrow the collection by skin concern with these, or search by name.'));
+        L.push(sc('card', 'idle', cardEl, 'Tap any card for ingredients, reviews and the science behind it.'));
+        L.push(navSc('sci', 'idle', 'science.html', 'Science', 'Want the why behind a device? The Science page has it.'));
+        break;
+      case 'product':
+        L.push(sc('add', 'arrive', addBtn, 'Ready when you are: tap Add to Bag. Free Express Shipping on every order.'));
+        L.push(navSc('shop', 'idle', 'catalog.html', 'Shop', 'Want to compare? The Shop has the full collection.'));
+        L.push(sc('ask', 'idle', null, 'Not sure this is the right one? Ask me and I will help you choose.', { ask: true }));
+        break;
+      case 'track-order':
+        L.push(sc('form', 'arrive', formInput, 'Enter your order number and email here to see live tracking.'));
+        L.push(sc('info', 'idle', null, 'Tracking updates the moment your order ships.'));
+        break;
+      case 'faq': case 'contact': case 'shipping': case 'returns': case 'guarantee':
+        L.push(sc('search', 'arrive', searchEl, 'Search here for a quick answer.'));
+        L.push(sc('ask', 'idle', null, 'Cannot find it? The Beauty Concierge answers in seconds.', { ask: true }));
+        break;
+      case 'reviews':
+        L.push(sc('filter', 'arrive', filterEl, 'Filter reviews by skin type to find people like you.'));
+        L.push(navSc('shop', 'idle', 'catalog.html', 'Shop', 'Loved what you read? The Shop is one tap away.'));
+        break;
+      case 'science':
+        L.push(sc('lab', 'arrive', null, 'Hover over an ingredient and I will put on my lab goggles.'));
+        L.push(navSc('rev', 'idle', 'reviews.html', 'Reviews', 'See how the science plays out in real routines.'));
+        break;
+      default:
+        L.push(navSc('shop', 'arrive', 'catalog.html', 'Shop', 'Take a look around. The Shop has everything.'));
+    }
+    L.push(sc('cart', 'idle', cartBtn, 'Your bag is up here. Everything you add waits for you.'));
+    return L;
+  }
+  function pickScene(kind) {                                             /* a random scene of this kind that has not played yet and whose target is on screen */
+    var seen = readSeen(), list = scenes(), ok = [], i, el;
+    for (i = 0; i < list.length; i++) {
+      if (list[i].when !== kind || seen.indexOf(list[i].id) >= 0) continue;
+      el = list[i].find ? list[i].find() : null;
+      if (!list[i].find || el) ok.push({ s: list[i], el: el });
+    }
+    return ok.length ? ok[Math.floor(Math.random() * ok.length)] : null;
+  }
+  function playScene(kind) {
+    var c = pickScene(kind); if (!c) return false;
+    var txt = typeof c.s.text === 'function' ? c.s.text(c.el) : c.s.text;
+    markSeen(c.s.id); lastSceneAt = Date.now(); scenesPlayed++;
+    if (c.el) guideShow(c.el, txt, { mute: true, href: c.s.href, hrefLabel: c.s.hrefLabel, ask: c.s.ask });
+    else guideSay(txt, { mute: true, href: c.s.href, hrefLabel: c.s.hrefLabel, ask: c.s.ask });
+    return true;
+  }
+  function guideArrive() {                                               /* a moment after the page opens: say hello and point at the most useful thing */
+    if (onCheckout || CFG.guide === false || muted()) return;
+    window.setTimeout(function () {
+      if (doc.hidden || guiding || tour.on) return;
+      var key = 'nkg_arr_' + PAGE; if (SS.get(key)) return; SS.set(key, '1');
+      var c = pickScene('arrive'); if (!c) return;
+      var first = !SS.get('nkm_hello'); SS.set('nkm_hello', '1');
+      var txt = (first ? 'Hi, I am the NIKORA Rabbit. ' : '') + (typeof c.s.text === 'function' ? c.s.text(c.el) : c.s.text);
+      markSeen(c.s.id); lastSceneAt = Date.now(); scenesPlayed++;
+      if (c.el) guideShow(c.el, txt, { mute: true }); else guideSay(txt, { mute: true });
+    }, 1300);
+  }
+  function guideTick() {                                                 /* every 4 s: has the visitor been still long enough for a tip or a stroll? */
+    if (doc.hidden || onCheckout || guiding || tour.on || (widget.pop && !widget.pop.hidden) || (widget.el && widget.el.classList.contains('is-chat-open'))) return;
+    var now = Date.now(), idle = now - lastActivity, ae = doc.activeElement;
+    if (now - lastBubbleAt < 9000 || (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))) return;
+    if (!muted() && idle >= 13000 && now - lastSceneAt >= 22000) {
+      if (scenesPlayed < 6 && playScene('idle')) return;
+      if (genericPlayed < 3 && now - lastSceneAt >= 40000) { genericPlayed++; lastSceneAt = now; guideSay(GENERIC[Math.floor(Math.random() * GENERIC.length)], { mute: true, actions: [{ label: 'Show me around', act: 'tour' }] }); return; }
+    }
+    if (!calm() && idle >= 18000 && now - lastWanderAt >= 24000) wander();
+  }
+
+  /* ---- reactions to what the visitor does ---- */
+  function guideCartAdded() {
+    if (onCheckout || CFG.guide === false || cartHints >= 4) return;
+    var c = cartBtn(); if (!c) return;
+    var first = !SS.get('nkg_cart1'); SS.set('nkg_cart1', '1'); cartHints++;
+    guideShow(c, first ? 'Added! Tap the bag to review your routine and check out.' : 'Nice pick. Keep browsing, or tap the bag when you are ready.',
+      first ? { force: true, href: 'checkout.html', hrefLabel: 'Go to checkout' } : { mute: true });
+  }
+  function guideCartOpened() {
+    if (onCheckout || CFG.guide === false || muted() || cartCount() < 1 || Number(SS.get('nkg_open') || 0) >= 2) return;
+    window.setTimeout(function () {
+      var dr = doc.getElementById('cart-drawer'), b = dr && (pickEl('#cart-drawer a[href*="checkout"]', false) || textEl(/check\s*out|proceed/i, dr, false));
+      if (!b || !vis(b, true)) return;
+      SS.set('nkg_open', String(Number(SS.get('nkg_open') || 0) + 1));
+      guideShow(b, 'Ready? Tap Checkout. Free Express Shipping, and a 30-day guarantee on every order.', { mute: true });
+    }, 800);
+  }
+
+  /* ---- "where is ...?" in the ask box ---- */
+  var INTENTS = [
+    { re: /track|order status|where.*order|my order/, find: nav('track-order.html'), label: 'Track Order', msg: 'Enter your order number and email there to see live tracking.', href: 'track-order.html' },
+    { re: /\b(cart|bag|checkout|check out)\b/, find: cartBtn, msg: 'Your bag is right here. Tap it to review and check out.' },
+    { re: /best ?sell|popular|top pick/, find: bestEl2, msg: 'These are the customer favorites.', href: 'catalog.html?filter=bestsellers', hrefLabel: 'Open Bestsellers' },
+    { re: /shop|catalog|collection|product|device|buy/, find: nav('catalog.html'), label: 'Shop', msg: 'The whole collection lives here.', href: 'catalog.html' },
+    { re: /science|ingredient|how (does|do).*work/, find: nav('science.html'), label: 'Science', msg: 'Every device and ingredient is explained here.', href: 'science.html' },
+    { re: /review|testimonial|rating/, find: nav('reviews.html'), label: 'Reviews', msg: 'Real routines from real customers.', href: 'reviews.html' },
+    { re: /faq|question/, find: nav('faq.html'), label: 'FAQ', msg: 'Quick answers to the most common questions.', href: 'faq.html' },
+    { re: /contact|support|email|human|talk to/, find: nav('contact.html'), label: 'Contact', msg: 'Our team replies within 2\u20134 business hours.', href: 'contact.html' },
+    { re: /return|refund|guarantee|money.?back/, msg: 'Every order has a 30-Day Money-Back Guarantee on unopened items.', href: 'guarantee.html', hrefLabel: 'Read the guarantee' },
+    { re: /ship|deliver|how long|arrive/, msg: 'Free Express Shipping on every order: 1\u20133 days processing, then 7\u201315 days in transit.', href: 'shipping.html', hrefLabel: 'Shipping details' }
+  ];
+  function guideIntent(q) {
+    q = String(q || '').toLowerCase().slice(0, 160);
+    if (q.length < 3 || onCheckout || !widget.stage) return false;
+    if (q.split(' ').length > 3 && !/\b(where|find|show|take me|go to|how (do|can) i|looking for|open|page|link)\b/.test(q)) return false;   /* real questions go to the Concierge; only "where is ..." style asks make the rabbit walk */
+    for (var i = 0; i < INTENTS.length; i++) {
+      if (!INTENTS[i].re.test(q)) continue;
+      (function (it) {
+        var el = it.find ? it.find() : null, txt = el && it.label ? mm(el, it.label, it.msg) : it.msg;
+        closePop(true);
+        window.setTimeout(function () {
+          if (el && guideShow(el, txt, { force: true, scroll: true, href: it.href, hrefLabel: it.hrefLabel })) return;
+          say(txt, { force: true, href: it.href, hrefLabel: it.hrefLabel || 'Take me there', ms: 9000 });
+        }, 260);
+      })(INTENTS[i]);
+      return true;
+    }
+    return false;
+  }
+
+  /* ---- the guided tour ("Show me around") ---- */
+  function tourSteps() {
+    var s = [], b = burgerEl();
+    function add(el, text) { if (el) s.push({ el: el, text: text }); }
+    if (b) add(b, 'The menu holds every page: Shop, Science, Reviews, Track Order, FAQ and Contact.');
+    else {
+      add(navEl('catalog.html'), 'Shop: the whole collection, filterable by skin concern.');
+      add(navEl('science.html'), 'Science: how every device and ingredient actually works.');
+      add(navEl('reviews.html'), 'Reviews: real routines from real customers.');
+      add(navEl('track-order.html'), 'Track Order: live updates once your order ships.');
+    }
+    if (PAGE === 'product') add(pickEl('#add-to-cart-btn,#mcta-add-btn,[data-bs-add],.btn-add-cart', false), 'When you find the one, tap Add to Bag.');
+    if (PAGE === 'catalog') add(pickEl('.product-card,.nk-card', false), 'Tap any card to see ingredients and reviews.');
+    add(cartBtn(), 'Your bag lives here. Checkout takes about a minute.');
+    return s;
+  }
+  function startTour() {
+    if (onCheckout) return;
+    closePop(true); hideBubble(); endGuide(true);
+    tour.steps = tourSteps(); tour.i = -1; tour.on = true; tourNext();
+  }
+  function tourDone() {
+    tour.on = false; tour.steps = []; endGuide();
+    say('That is the tour! Tap me whenever you need a hand.', { force: true, ms: 6000, quiet: true });
+  }
+  function tourNext() {
+    hideBubble(); tour.i++;
+    var st = tour.steps[tour.i];
+    if (!st) { tourDone(); return; }
+    if (!doc.contains(st.el)) { tourNext(); return; }
+    var last = tour.i >= tour.steps.length - 1, acts = [{ label: last ? 'Done' : 'Next', act: 'tour-next' }];
+    if (!last) acts.push({ label: 'Stop', act: 'tour-stop' });
+    if (!guideShow(st.el, st.text, { force: true, scroll: true, ms: 120000, actions: acts })) tourNext();
+  }
+  function stopTour() { tour.on = false; tour.steps = []; hideBubble(); endGuide(); }
+
+  function initGuide() {
+    lastActivity = Date.now();
+    if (CFG.guide === false) return;
+    window.setInterval(guideTick, 4000);
+    doc.addEventListener('click', function (e) {
+      var t = e.target; if (!t || !t.closest) return;
+      if (widget.el && widget.el.contains(t)) { if (t.closest('[data-nkm="close"]') && !tour.on) endGuide(); return; }
+      if (guiding && !tour.on) endGuide();                               /* the visitor acted: drop the ring and step back */
+      if (t.closest('#open-cart-btn')) guideCartOpened();
+      if (onCheckout || muted() || SS.get('nkg_h_filter')) return;
+      if (t.closest('.f-chips-wrap,.filter-bar,.catalog-controls,.toolbar-wrap,.search-filter-container,.r-tabs-wrap') && t.closest('button,a,[role="button"],[data-filter]')) {
+        SS.set('nkg_h_filter', '1');
+        window.setTimeout(function () { guideSay('Nice. Scroll down to see what matches, and tap a card for details.', { ms: 6500, mute: true }); }, 500);
+      }
+    }, true);
+    doc.addEventListener('focusin', function (e) {
+      var t = e.target;
+      if (onCheckout || muted() || !t || !t.matches || SS.get('nkg_h_search')) return;
+      if (t.matches('input[type="search"],input[placeholder*="earch" i]')) { SS.set('nkg_h_search', '1'); guideSay('Try a skin concern like \u201chydration\u201d, or a product name.', { ms: 6000, mute: true }); }
+    });
+    doc.addEventListener('mouseout', function (e) {                      /* exit intent: the mouse leaves through the top with something in the bag */
+      if (e.relatedTarget || e.clientY > 4 || onCheckout || SS.get('nkg_exit') || cartCount() < 1 || muted() || window.innerWidth < 900) return;
+      SS.set('nkg_exit', '1');
+      var c = cartBtn(); if (c) guideShow(c, 'Leaving already? Your bag is saved, and every order has a 30-day guarantee.', { mute: true, href: 'checkout.html', hrefLabel: 'Checkout now' });
+    });
+    window.addEventListener('nikora:assistant-open', function () { stopTour(); endGuide(true); });
+    widget.char.addEventListener('click', function () { if (!tour.on) endGuide(true); }, true);
+  }
 
   function initCompanion() {
     if (!CFG.widget || doc.getElementById('nkm-widget')) return;
@@ -863,6 +1223,9 @@
       else if (a === 'mute') { LS.set(MUTE_KEY, String(Date.now() + 7 * 864e5)); hideBubble(); if (!widget.pop.hidden) widget.pop.innerHTML = popHtml(); }
       else if (a === 'unmute') { LS.del(MUTE_KEY); if (!widget.pop.hidden) widget.pop.innerHTML = popHtml(); }
       else if (a === 'forget') { forget(); widget.pop.innerHTML = popHtml(); }
+      else if (a === 'tour') startTour();
+      else if (a === 'tour-next') tourNext();
+      else if (a === 'tour-stop') stopTour();
       else if (a === 'continue') {                                       /* hand the question to the full chat */
         var q = b.getAttribute('data-q') || ''; closePop(true); hideBubble();
         if (window.NikoraAssistant && typeof window.NikoraAssistant.send === 'function') window.NikoraAssistant.send(q); else openAssistant();
@@ -894,7 +1257,7 @@
     doc.addEventListener('click', function (e) {
       if (e.target.closest && e.target.closest(ADD_SEL)) react('joy');                                   /* 0 ms: on the click itself */
       var before = cartCount();                                                                          /* other ways of adding / removing: judged by the bag count right after */
-      window.setTimeout(function () { var now = cartCount(); if (now > before) react('joy'); else if (now < before) react('surprise', { ms: 900 }); }, 350);
+      window.setTimeout(function () { var now = cartCount(); if (now > before) { react('joy'); guideCartAdded(); } else if (now < before) react('surprise', { ms: 900 }); }, 350);
     }, true);
     /* science mode: lab goggles + sparkles while the pointer is on a key ingredient */
     doc.addEventListener('pointerover', function (e) {
@@ -915,8 +1278,9 @@
       if (doc.hidden) return;
       react('hop');
       if (widget.live && !calm()) { widget.live.classList.add('is-wiggle'); window.setTimeout(function () { widget.live.classList.remove('is-wiggle'); }, 900); }
-      if (!onCheckout && !muted() && !SS.get('nkm_hello')) { SS.set('nkm_hello', '1'); say('Hi, I am the NIKORA Rabbit. Tap me if you need a hand!', { ms: 5200, quiet: true }); }
+      if (!onCheckout) guideArrive();
     }, 1400);
+    initGuide();
     if (/page not found/i.test(doc.title || '')) react('surprise', { ms: 1800 });
     /* checkout: the rabbit is there to reassure, with one friendly line a few seconds after the page opens */
     if (onCheckout && !quiet() && !muted() && !SS.get('nkm_ck_hello')) {
@@ -929,6 +1293,7 @@
   var api = { version: '1.1', svg: svg, tip: tip, help: help, empty: empty, enhance: enhance, poses: Object.keys(POSES),
     learn: learn, setProfile: setProfile, getProfile: getProfile, forget: forget, say: say, react: react, open: openAssistant,
     curate: curate, looksUseful: looksUseful, allowed: allowed, markPurchased: markPurchased, point: pointAt,
+    guide: { show: guideShow, say: guideSay, tour: startTour, home: goHome, wander: wander },
     hop: function () { react('hop'); }, motion: function () { return calm() ? 'calm' : 'full'; } };
   window.NKMascot = api;
 
