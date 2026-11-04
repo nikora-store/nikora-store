@@ -10,8 +10,9 @@
  *   4. ICON CENTERING     the SVG inside .gb-ico / .step-ico / .cover-ico gets its viewBox shifted so its drawing is centred in the tile.
  *   5. BARS IN FLOW       search / filter / toolbar bars never stick or float over content (CSS guard + a runtime check that un-sticks any new one).
  *                         Opt out per element with data-nk-sticky. Sidebars beside the content (.pv-side on desktop, .ret-card, .ck-summary) stay sticky on purpose.
- *   6. CODE MATRIX        a faint, slow rain of JavaScript snippets behind the page, in DARK MODE ONLY (canvas #nk-code-matrix, z-index -1).
- *                         window.NK_MATRIX = { enabled:true, opacity:.16, fps:30 } (set before this file loads). Reduced motion / data saver: one static frame.
+ *   6. AMBIENT GLOW       a slow-flowing gradient glow behind the page, in DARK MODE ONLY (div #nk-ambient-glow, z-index -1, pure CSS animation, no canvas).
+ *                         Palette: obsidian #0D0D0E, royal purple / plum #3B2050 + #5A3578, warm golden highlights. window.NK_GLOW = { enabled:false } turns it off.
+ *                         Reduced motion: the glow is shown still. Paused while the tab is hidden.
  *
  * Loading: nav.js loads this file from its own folder on every page. You can also add <script src="animations.js" defer></script> to a page's <head>
  * to start the effects a little earlier; it never runs twice.
@@ -48,10 +49,22 @@
     'html .toolbar-wrap,html .search-filter-container,html .catalog-controls,html .filter-bar,html .rv-toolbar,html .f-search-wrap,html .f-chips-wrap,html .r-tabs-wrap{position:relative !important;top:auto !important;bottom:auto !important;z-index:5 !important;}',
     /* the "On this page" bar of the policy pages floated over the text on phones; the desktop sidebar beside the text is untouched */
     '@media (max-width:960px){html .pv-side{position:static !important;top:auto !important;z-index:auto !important;margin-top:0 !important;padding-top:0 !important;background:none !important;}}',
-    /* dark-mode code matrix: only exists visually in dark mode, always behind the content, never clickable */
-    '#nk-code-matrix{position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:-1;pointer-events:none;display:none;opacity:0;-webkit-mask-image:radial-gradient(ellipse 75% 65% at 50% 42%,rgba(0,0,0,.42) 0%,#000 100%);mask-image:radial-gradient(ellipse 75% 65% at 50% 42%,rgba(0,0,0,.42) 0%,#000 100%);}',
-    ':root[data-theme="dark"] #nk-code-matrix{display:block;opacity:var(--nk-matrix-o,.16);}',
-    '@media print{#nk-code-matrix{display:none !important;}}',
+    /* dark-mode ambient glow: obsidian base + four huge, soft radial blobs drifting very slowly; behind the content, never clickable */
+    '#nk-ambient-glow{position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:-1;pointer-events:none;display:none;overflow:hidden;background:#0D0D0E;contain:strict;}',
+    ':root[data-theme="dark"] #nk-ambient-glow{display:block;}',
+    '#nk-ambient-glow i{position:absolute;display:block;border-radius:50%;will-change:transform;}',
+    '#nk-ambient-glow .nk-g1{width:80vmax;height:80vmax;left:-24vmax;top:-30vmax;background:radial-gradient(circle,rgba(90,53,120,.55) 0%,rgba(90,53,120,0) 62%);animation:nkGlowA 52s ease-in-out infinite alternate;}',
+    '#nk-ambient-glow .nk-g2{width:90vmax;height:90vmax;right:-34vmax;bottom:-38vmax;background:radial-gradient(circle,rgba(59,32,80,.9) 0%,rgba(59,32,80,0) 64%);animation:nkGlowB 64s ease-in-out infinite alternate;}',
+    '#nk-ambient-glow .nk-g3{width:56vmax;height:56vmax;left:34%;top:30%;background:radial-gradient(circle,rgba(200,155,84,.13) 0%,rgba(200,155,84,0) 66%);animation:nkGlowC 78s ease-in-out infinite alternate;}',
+    '#nk-ambient-glow .nk-g4{width:46vmax;height:46vmax;right:4%;top:-14vmax;background:radial-gradient(circle,rgba(229,186,115,.09) 0%,rgba(90,53,120,.16) 40%,rgba(90,53,120,0) 68%);animation:nkGlowD 70s ease-in-out infinite alternate;}',
+    '@keyframes nkGlowA{0%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(22vw,14vh,0) scale(1.15)}100%{transform:translate3d(8vw,30vh,0) scale(.95)}}',
+    '@keyframes nkGlowB{0%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(-26vw,-12vh,0) scale(1.12)}100%{transform:translate3d(-10vw,-28vh,0) scale(1.04)}}',
+    '@keyframes nkGlowC{0%{transform:translate3d(-14vw,-8vh,0) scale(.9)}50%{transform:translate3d(10vw,12vh,0) scale(1.2)}100%{transform:translate3d(18vw,-10vh,0) scale(1)}}',
+    '@keyframes nkGlowD{0%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(-22vw,20vh,0) scale(1.18)}100%{transform:translate3d(-8vw,34vh,0) scale(.92)}}',
+    '#nk-ambient-glow.nk-g-paused i{animation-play-state:paused;}',
+    '@media print{#nk-ambient-glow{display:none !important;}}',
+    '@media (prefers-reduced-motion:reduce){#nk-ambient-glow i{animation:none !important;}}',
+    /* (end of glow CSS) */
     '@media (prefers-reduced-motion:reduce){html .faq-a,html .accordion-panel{transition:none;}}'
   ].join('\n');
   function injectCss() {
@@ -260,71 +273,16 @@
     if (window.MutationObserver) new MutationObserver(later).observe(doc.body, { childList: true, subtree: true });
   }
 
-  /* ====================================================================== 6. DARK-MODE CODE MATRIX */
-  var MATRIX_LINES = [
-    'const routine = ["cleanse", "tone", "infuse", "seal"];',
-    'export const glow = (skin) => skin.hydrate().soothe();',
-    'await fetch("/api/catalog").then((r) => r.json());',
-    'const total = cart.reduce((s, i) => s + i.price * i.qty, 0);',
-    'if (skin.barrier < 0.6) { serum.apply("centella"); }',
-    'for (const step of routine) { await step.apply(); }',
-    'document.querySelector(".glass-skin").classList.add("glow");',
-    'localStorage.setItem("theme", "dark");',
-    'const wand = new Device({ led: 630, ems: true });',
-    'new Promise((resolve) => setTimeout(resolve, 300));',
-    'items.filter((p) => p.bestseller).sort(byRank);',
-    'window.addEventListener("scroll", () => rabbit.follow());'
-  ];
-  function initMatrix() {
-    var cfg = window.NK_MATRIX || {};
-    if (cfg.enabled === false) return;
-    var cvs = doc.createElement('canvas'); cvs.id = 'nk-code-matrix'; cvs.setAttribute('aria-hidden', 'true');
-    if (cfg.opacity != null) cvs.style.setProperty('--nk-matrix-o', String(cfg.opacity));
-    doc.body.appendChild(cvs);                                           /* appended last: z-index -1 puts it behind everything regardless of DOM order */
-    var ctx = cvs.getContext && cvs.getContext('2d'); if (!ctx) return;
-    var conn = navigator.connection || {}, lowEnd = (navigator.hardwareConcurrency || 4) <= 2 || (navigator.deviceMemory || 4) <= 2;
-    var still = reduced() || conn.saveData === true;                      /* one static frame instead of animation */
-    var dpr = Math.min(window.devicePixelRatio || 1, 1.5), frameMs = 1000 / (cfg.fps || (lowEnd ? 20 : 30));
-    var W = 0, H = 0, cell = 17, cols = [], raf = 0, last = 0, running = false, built = false, warmed = false;
-    var COLOR = 'rgba(200,155,84,0.55)', HEAD = 'rgba(244,220,168,0.9)';
-    function isDark() { return root.getAttribute('data-theme') === 'dark'; }
-    function rnd(n) { return Math.floor(Math.random() * n); }
-    function newCol(x) { var line = MATRIX_LINES[rnd(MATRIX_LINES.length)]; return { x: x, y: -cell * rnd(Math.max(8, Math.floor(H / cell))), v: 0.1 + Math.random() * 0.18, acc: 0, line: line, i: rnd(line.length) }; }
-    function build() {
-      W = window.innerWidth; H = window.innerHeight; cell = W < 700 ? 15 : 17;
-      cvs.width = Math.round(W * dpr); cvs.height = Math.round(H * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.font = (cell - 4) + 'px "JetBrains Mono","Fira Code",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace'; ctx.textBaseline = 'top';
-      var spacing = cell * (W < 700 ? 2.8 : 2.2), n = Math.ceil(W / spacing); if (lowEnd) n = Math.ceil(n * 0.6);
-      cols = []; for (var i = 0; i < n; i++) cols.push(newCol(i * spacing + rnd(6)));
-      built = true; warmed = false;
-    }
-    function tick() {
-      ctx.globalCompositeOperation = 'destination-out'; ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.fillRect(0, 0, W, H);     /* old characters fade away: the trail */
-      ctx.globalCompositeOperation = 'source-over';
-      for (var k = 0; k < cols.length; k++) {
-        var c = cols[k]; c.acc += c.v;
-        while (c.acc >= 1) {
-          c.acc -= 1; var ch = c.line.charAt(c.i);
-          if (ch !== ' ') { ctx.fillStyle = HEAD; ctx.fillText(ch, c.x, c.y); }
-          c.y += cell; c.i = (c.i + 1) % c.line.length;
-          if (c.y > H + cell) { var line = MATRIX_LINES[rnd(MATRIX_LINES.length)]; c.y = -cell * rnd(8); c.line = line; c.i = 0; c.v = 0.1 + Math.random() * 0.18; }
-        }
-      }
-    }
-    function loop(ts) { raf = window.requestAnimationFrame(loop); if (ts - last < frameMs) return; last = ts; tick(); }
-    function stop() { running = false; window.cancelAnimationFrame(raf); }
-    function warm() { for (var f = 0; f < 140; f++) tick(); warmed = true; }       /* the static frame: enough ticks for a full, faded field of code */
-    function sync() {
-      if (!isDark()) { stop(); if (built) ctx.clearRect(0, 0, W, H); warmed = false; return; }     /* light mode: nothing drawn, nothing running */
-      if (!built) build();
-      if (still) { if (!warmed) warm(); return; }
-      if (!running && !doc.hidden) { running = true; last = 0; raf = window.requestAnimationFrame(loop); }
-    }
-    if (window.MutationObserver) new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['data-theme'] });   /* follows the theme toggle at once */
-    doc.addEventListener('visibilitychange', function () { if (doc.hidden) stop(); else sync(); });
-    var rt = 0; window.addEventListener('resize', function () { clearTimeout(rt); rt = window.setTimeout(function () { if (isDark()) { stop(); build(); sync(); } else built = false; }, 200); });
-    sync();
-    return { start: sync, stop: stop };
+  /* ====================================================================== 6. DARK-MODE AMBIENT GLOW */
+  /** A fixed obsidian layer (z-index -1) holding four soft gradient blobs that drift slowly. All motion is CSS (compositor only, no JS per frame); it is only visible when <html data-theme="dark">. */
+  function initGlow() {
+    var cfg = window.NK_GLOW || {};
+    if (cfg.enabled === false || doc.getElementById('nk-ambient-glow')) return;
+    var g = doc.createElement('div'); g.id = 'nk-ambient-glow'; g.setAttribute('aria-hidden', 'true');
+    g.innerHTML = '<i class="nk-g1"></i><i class="nk-g2"></i><i class="nk-g3"></i><i class="nk-g4"></i>';
+    doc.body.appendChild(g);                                             /* z-index -1 puts it behind everything regardless of DOM order */
+    doc.addEventListener('visibilitychange', function () { g.classList.toggle('nk-g-paused', doc.hidden); });
+    return { el: g };
   }
 
   /* ====================================================================== boot + public API */
@@ -335,7 +293,7 @@
     try { api.reveal = initReveal(); } catch (e) { if (window.console) console.warn('[animations] reveal off:', e); }
     try { initCollapse(); } catch (e) { if (window.console) console.warn('[animations] collapse off:', e); }
     try { initFlow(); } catch (e) { if (window.console) console.warn('[animations] flow guard off:', e); }
-    try { api.matrix = initMatrix(); } catch (e) { if (window.console) console.warn('[animations] matrix off:', e); }
+    try { api.glow = initGlow(); } catch (e) { if (window.console) console.warn('[animations] glow off:', e); }
     centerIcons();
     window.addEventListener('load', function () { centerIcons(); });
   }

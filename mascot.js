@@ -20,7 +20,7 @@
  * Opt out of an automatic upgrade with data-nk-mascot-off.
  *
  * LIVE COMPANION (v3): a free-standing solid rabbit (obsidian body, gold #C89B54 outline, soft drop-shadow, no button disc) on every page, checkout included.
- *   Modes      ROAM (default): it drifts down the left edge as the page scrolls. PIN: the pushpin on the rabbit grounds it in the bottom corner, quiet and still
+ *   Modes      DOCKED: fixed in the bottom corner of the screen, never moves with the page scroll (roam / pin retired, pushpin hidden). Legacy note:
  *               (saved in localStorage 'nikora_mascot_pinned'). At checkout it is always docked in the corner so it never sits over the payment form.
  *   Speech     idle tips, answers to the popup's ask box and checkout reassurance come from NikoraAssistant.speak() (ai-assistant.js: the live endpoint when
  *               configured, else the local engine, using the customer's chat history + remembered profile); built-in lines are only the fallback.
@@ -563,7 +563,7 @@
 
   function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
   function muted() { return Number(LS.get(MUTE_KEY) || 0) > Date.now(); }
-  function docked() { return userPinned || onCheckout; }               /* pinned by the customer, or checkout (never roams over the payment form) */
+  function docked() { return true; }               /* always docked: no scroll-driven roaming any more */               /* pinned by the customer, or checkout (never roams over the payment form) */
   function quiet() { return userPinned; }                              /* quiet = no unsolicited bubbles, no head tracking, no extra motion */
   function charW() { return window.innerWidth <= 640 ? 54 : 66; }
   function charH() { return Math.round(charW() * 133 / 101.2); }
@@ -582,13 +582,8 @@
   function target() {
     var vw = window.innerWidth, vh = window.innerHeight, W = charW(), H = charH();
     var right = CFG.side === 'right';
-    if (docked()) return { x: right ? vw - W - 16 : 16, y: Math.max(8, vh - H - 16 - liftPx) };
-    var hdr = doc.getElementById('nkn-header'), top = (hdr ? Math.max(0, hdr.getBoundingClientRect().bottom) : 0) + 14;
-    var bottom = Math.max(top, vh - H - 22 - liftPx);
-    var range = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight) - vh;
-    var p = range > 40 ? clamp((window.pageYOffset || doc.documentElement.scrollTop || 0) / range, 0, 1) : 1;
-    var gut = Math.min(90, vw * 0.07), sway = 0.5 + 0.5 * Math.sin(p * 6.4);
-    return { x: right ? vw - W - 12 - sway * gut : 12 + sway * gut, y: top + p * (bottom - top) };
+    /* DOCKED: the mascot is position:fixed inside a fixed layer and always sits at the same screen spot; the page scroll offset is never read. */
+    return { x: right ? vw - W - 16 : 16, y: Math.max(8, vh - H - 16 - liftPx) };
   }
   function place() {
     if (!widget.stage) return;
@@ -832,7 +827,7 @@
     onCheckout = /checkout/.test(path);
     if (SS.get('nikora_last_order')) markPurchased();                       /* an order was completed in this tab */
     var pref = LS.get(PIN_KEY);                                              /* the customer's own choice always wins; otherwise returning buyers start pinned (quiet) */
-    userPinned = pref === '1' || (pref === null && (CFG.roam === false || (CFG.autoStatic !== false && hasPurchased())));
+    userPinned = false;   /* the pin / roam modes are retired: the rabbit is always docked AND keeps its idle animations, micro-jumps and tips */
     var st = doc.createElement('style'); st.id = 'nk-mascot-live-css'; st.textContent = COMPANION_CSS; (doc.head || doc.documentElement).appendChild(st);
     var el = doc.createElement('div');
     el.className = 'nkm-widget'; el.id = 'nkm-widget';
@@ -843,7 +838,7 @@
     doc.body.appendChild(el);
     widget.el = el; widget.stage = el.querySelector('.nkm-stage'); widget.bubble = el.querySelector('.nkm-bubble'); widget.pop = el.querySelector('.nkm-pop');
     widget.char = el.querySelector('.nkm-char'); widget.pin = el.querySelector('.nkm-pin'); widget.arrow = el.querySelector('.nkm-arrow'); widget.lean = el.querySelector('.nkm-lean'); widget.live = el.querySelector('.nkm-live');
-    if (onCheckout) el.classList.add('is-forced-dock');
+    el.classList.add('is-forced-dock');                                     /* hides the (now meaningless) pushpin button */
     setPinned(userPinned, true);
     lift(); kick(true);
 
@@ -869,8 +864,8 @@
     window.addEventListener('nikora:assistant-open', function () { closePop(true); hideBubble(); setClass('is-chat-open', true); });
     window.addEventListener('nikora:assistant-close', function () { setClass('is-chat-open', false); });
 
-    /* roaming follows the scroll; resize / orientation re-places the rabbit */
-    window.addEventListener('scroll', function () { lastScroll = Date.now(); if (pointing) endPoint(); kick(false); }, { passive: true });
+    /* the rabbit is docked: scrolling only dismisses a pointing arrow, it never moves the rabbit; resize / orientation re-places it */
+    window.addEventListener('scroll', function () { lastScroll = Date.now(); if (pointing) endPoint(); }, { passive: true });
     window.addEventListener('resize', function () { kick(true); });
     window.addEventListener('load', function () { kick(false); });
     window.addEventListener('pointermove', onPointer, { passive: true });
