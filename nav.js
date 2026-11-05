@@ -35,6 +35,7 @@
  * Public API:
  *   window.NikoraNav = { openMenu, closeMenu, config, refreshSiteContent }
  *   window.openAiAssistant()   opens the Beauty Concierge chat (loads it first if needed)
+ *   window.openSearch()        opens the smart search overlay (loads semantic-search.js first if needed); any element with [data-nk-search-open] does the same
  */
 (function () {
   'use strict';
@@ -144,6 +145,7 @@
     burger:  '<path d="M4 6h16M4 12h16M4 18h16"/>',
     sun:     '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
     moon:    '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>',
+    search:  '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
     cart:    '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/>'
   };
   function ico(name, cls) { return svg(ICON[name] || ICON.arrow, cls); }
@@ -341,7 +343,10 @@
   '  .nkn-row{gap:14px;}',
   '}',
   '@media (max-width:600px){ .nkn-header{--nkn-header-r:16px;margin:0 8px;} .nkn-header .nkn-logo{--nkn-logo-h:40px;} .nkn-footer .nkn-logo{--nkn-logo-h:56px;} }',
-  '@media (max-width:360px){ .nkn-header .nkn-pill{display:none;} .nkn-header .nkn-logo{--nkn-logo-h:36px;} }',
+  /* phones: the search button needs room, so the header theme pill steps aside (the drawer keeps its own theme switcher) */
+  '@media (max-width:460px){ .nkn-header .nkn-pill{display:none;} .nkn-actions{gap:8px;} }',
+  '@media (max-width:360px){ .nkn-header .nkn-logo{--nkn-logo-h:36px;} }',
+  '@media (max-width:340px){ .nkn-header .nkn-row{gap:8px;padding:0 14px;} .nkn-header .nkn-btn{width:36px;height:36px;} }',
   '@media (prefers-reduced-motion:reduce){',
   '  .nkn-header,.nkn-drawer,.nkn-overlay,.nkn-ind,.nkn-f-link,.nkn-logo-svg,.nkn-wordmark{transition-duration:.001s !important;transition-delay:0s !important;}',
   '  .nkn-drawer.active .nkn-d-sec{animation:none;}',
@@ -392,6 +397,7 @@
         '<nav class="nkn-primary" aria-label="Primary">' + links + '<span class=\"nkn-ind-track\" aria-hidden=\"true\"><span class=\"nkn-ind\"></span></span></nav>' +
         '<div class="nkn-actions">' +
           themePill('') +
+          '<button type="button" class="nkn-btn" id="nkn-search-btn" data-nk-search-open aria-label="Search products" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K">' + ico('search') + '</button>' +
           '<button type="button" class="nkn-btn" id="open-cart-btn" data-nk-point="cart" aria-label="Open cart">' + ico('cart') + '<span class="nkn-badge" id="cart-count">0</span></button>' +
           '<button type="button" class="nkn-btn nkn-burger" id="mobile-menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu-drawer">' + ico('burger') + '</button>' +
         '</div>' +
@@ -754,6 +760,9 @@
     wire();
     loadAnimations();
     loadMascot();
+    loadTextFx();
+    searchConfig();
+    if (window.requestIdleCallback) window.requestIdleCallback(function () { loadSearch(); }); else setTimeout(function () { loadSearch(); }, 1500);
     bindPromo();
     startSite();
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountFooter); else mountFooter();
@@ -816,6 +825,37 @@
     el.id = 'nk-mascot-loader'; el.async = true; el.src = base + 'mascot.js';
     (document.head || document.documentElement).appendChild(el);
   }
+  /* folder of nav.js (the stand-alone scripts below live next to it) */
+  function baseUrl() { return SELF_SRC ? SELF_SRC.slice(0, SELF_SRC.split('?')[0].split('#')[0].lastIndexOf('/') + 1) : ''; }
+  /* Magic UI-style text effects (blur-in, typing): text-animations.js. If the page already has <script src="text-animations.js"> in <head> (recommended: no flash before an effect starts) this does nothing. */
+  function loadTextFx() {
+    if (window.NikoraText || document.getElementById('nk-textfx-loader') || document.querySelector('script[src*="text-animations"]')) return;
+    var el = document.createElement('script');
+    el.id = 'nk-textfx-loader'; el.async = true; el.src = baseUrl() + 'text-animations.js';
+    (document.head || document.documentElement).appendChild(el);
+  }
+  /* Smart search: semantic-search.js (UI + ranking) + semantic-worker.js (AI model in a Web Worker). The model is NOT downloaded until the visitor shows intent (hover / focus / click on the search button). */
+  function searchConfig() {
+    var c = window.NK_SEARCH = window.NK_SEARCH || {};
+    if (!c.workerUrl) c.workerUrl = baseUrl() + 'semantic-worker.js';
+    if (!c.dbUrl) c.dbUrl = SITE.dbUrl;                 /* same Firebase Realtime DB as /site_content: products are read from /products */
+  }
+  function loadSearch(done) {
+    searchConfig();
+    if (window.NikoraSearch) { if (done) done(); return; }
+    var el = document.getElementById('nk-search-loader') || document.querySelector('script[src*="semantic-search"]');
+    if (!el) {
+      el = document.createElement('script');
+      el.id = 'nk-search-loader'; el.async = true; el.src = baseUrl() + 'semantic-search.js';
+      (document.head || document.documentElement).appendChild(el);
+    }
+    if (done) el.addEventListener('load', done);
+  }
+  /* Opens the search overlay; if semantic-search.js is still loading (or not requested yet) it waits for it. */
+  window.openSearch = function () {
+    if (window.NikoraSearch) { window.NikoraSearch.open(); return; }
+    loadSearch(function () { if (window.NikoraSearch) window.NikoraSearch.open(); });
+  };
   /* Opens the chat; if the widget is still loading (or not requested yet) it waits for it. */
   window.openAiAssistant = function () {
     if (window.NikoraAssistant) { window.NikoraAssistant.open(); return; }
@@ -923,6 +963,7 @@
         if (pr) pr.hidden = true;
         return;
       }
+      if (t.closest('[data-nk-search-open]')) { if (!window.NikoraSearch) window.openSearch(); return; }   /* once semantic-search.js is loaded it opens the overlay itself */
       if (t.closest('#open-cart-btn')) { if (typeof window.openCart === 'function') window.openCart(); return; }
       if (t.closest('[data-nkn-ai]')) { closeMenu(true); window.openAiAssistant(); return; }
       var logo = t.closest('#nkn-logo');                                       /* on the home page the logo scrolls to the top */
