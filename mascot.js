@@ -842,9 +842,11 @@
      The rabbit travels across the viewport (roamPos = where it should stand; frame() glides it there), stands next to the button or section it is talking about,
      draws a gold ring around it and speaks in its bubble. Messages come from three places: "scenes" per page (arrival, idle), reactions to what the visitor does
      (cart add, cart open, search focus, filter click, exit intent) and the visitor's own questions ("where is ...?" in the ask box, the "Show me around" tour).
-     Nothing roams at checkout; "Hide tips" silences every proactive message; reduced motion makes moves instant (calm mode). */
+     Nothing roams at checkout; "Hide tips" silences every proactive message; reduced motion makes moves instant (calm mode).
+     It never points at something that is covered (an open cart drawer or modal on top of it); inside a side panel it stands OUTSIDE the panel. */
   var roamPos = null, guideV = null, guideH = null, guiding = false, ringEl = null, ringTarget = null, ringRaf = 0;
   var guideEnd = 0, settleTimer = 0, lastSceneAt = 0, lastWanderAt = 0, scenesPlayed = 0, genericPlayed = 0, cartHints = 0;
+  var follow = null, coverAt = 0;
   var tour = { on: false, steps: [], i: -1 };
   var PAGE = (function () { var f = location.pathname.split('/').pop().toLowerCase().replace(/\.html$/, ''); return f || 'index'; })();
   var SEEN_KEY = 'nkg_seen';
@@ -859,11 +861,17 @@
 
   /* ---- finding things on the page (works without knowing each page's markup) ---- */
   function inView(r) { return r.bottom > 24 && r.top < window.innerHeight - 24 && r.right > 0 && r.left < window.innerWidth; }
+  function uncovered(el, r) {                                            /* is the element really what is on top at its centre? (an open drawer / overlay covers it otherwise) */
+    var p = doc.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    if (!p) return false;
+    if (p === el || el.contains(p)) return true;
+    return p.contains(el) && p !== doc.body && p !== doc.documentElement;
+  }
   function vis(el, strict) {
     if (!el || !el.getBoundingClientRect || (el.closest && el.closest('.nkm-widget'))) return false;
     var r = el.getBoundingClientRect(); if (r.width < 6 || r.height < 6) return false;
     var cs = window.getComputedStyle(el); if (cs.visibility === 'hidden' || cs.display === 'none') return false;
-    return strict ? inView(r) : true;
+    return strict ? (inView(r) && uncovered(el, r)) : true;
   }
   function pickEl(sel, strict) { var l = doc.querySelectorAll(sel), i; for (i = 0; i < l.length; i++) if (vis(l[i], strict !== false)) return l[i]; return null; }
   function textEl(re, scope, strict) {
@@ -874,7 +882,33 @@
   function navEl(file) { return pickEl('.nkn-primary a[href*="' + file + '"]'); }
   function burgerEl() { return pickEl('#mobile-menu-btn'); }
   function nav(file) { return function () { return navEl(file) || burgerEl(); }; }
-  function cartBtn() { return pickEl('#open-cart-btn', false); }
+  function cartBtn() { return pickEl('#open-cart-btn'); }                /* null while a drawer covers it */
+  function cartOpen() {                                                  /* is the Your Bag drawer on screen? */
+    var d = doc.getElementById('cart-drawer'); if (!d) return false;
+    var r = d.getBoundingClientRect(), cs = window.getComputedStyle(d);
+    return cs.visibility !== 'hidden' && cs.display !== 'none' && r.width > 100 && r.left < window.innerWidth - 40 && r.right > 40;
+  }
+  function cartCheckoutEl() {                                            /* the Checkout button inside the drawer: the lowest matching, visible, uncovered one */
+    var dr = doc.getElementById('cart-drawer'); if (!dr) return null;
+    var l = dr.querySelectorAll('a,button,[role="button"]'), i, t, el, best = null;
+    for (i = 0; i < l.length; i++) {
+      el = l[i]; t = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!t || t.length > 40 || !(/check\s*out|proceed/i.test(t) || /checkout/i.test(el.getAttribute('href') || ''))) continue;
+      if (!vis(el, true)) continue;
+      if (!best || el.getBoundingClientRect().bottom > best.getBoundingClientRect().bottom) best = el;
+    }
+    return best;
+  }
+  function whenStable(find, cb, tries) {                                 /* wait until the element exists and has stopped moving (drawer finished sliding) */
+    var last = null, same = 0, n = 0;
+    (function poll() {
+      var el = find(), r = el && el.getBoundingClientRect();
+      if (el && last && Math.abs(r.top - last.top) < 1 && Math.abs(r.left - last.left) < 1 && Math.abs(r.height - last.height) < 1) same++; else same = 0;
+      last = r ? { top: r.top, left: r.left, height: r.height } : null;
+      if (el && same >= 3) { cb(el); return; }
+      if (++n < (tries || 20)) window.setTimeout(poll, 100);
+    })();
+  }
   function bestEl2() { return pickEl('[data-nk-point="bestsellers"],#bestseller,a[href*="filter=bestsellers"]'); }
   function addBtn() { return pickEl('#add-to-cart-btn,#mcta-add-btn,[data-bs-add],.btn-add-cart') || textEl(/^add to (bag|cart)/i); }
   function cardEl() { return pickEl('.product-card,.nk-card'); }
@@ -889,8 +923,19 @@
     ringRaf = 0;
     if (!ringEl || !ringTarget) return;
     var r = ringTarget.getBoundingClientRect();
-    if (r.width < 4 || !inView(r)) ringEl.hidden = true;
-    else { ringEl.hidden = false; ringEl.style.left = (r.left - 5) + 'px'; ringEl.style.top = (r.top - 5) + 'px'; ringEl.style.width = (r.width + 10) + 'px'; ringEl.style.height = (r.height + 10) + 'px'; }
+    if (r.width < 4 || !inView(r) || !doc.contains(ringTarget)) ringEl.hidden = true;
+    else if (!uncovered(ringTarget, r)) {                                /* a drawer / modal opened on top of it */
+      ringEl.hidden = true;
+      if (!coverAt) coverAt = Date.now();
+      else if (Date.now() - coverAt > 600) { hideBubble(); endGuide(); return; }
+    } else {
+      coverAt = 0; ringEl.hidden = false;
+      ringEl.style.left = (r.left - 5) + 'px'; ringEl.style.top = (r.top - 5) + 'px'; ringEl.style.width = (r.width + 10) + 'px'; ringEl.style.height = (r.height + 10) + 'px';
+      if (follow && (Math.abs(r.top - follow.top) > 6 || Math.abs(r.left - follow.left) > 6)) {   /* the target moved (drawer sliding, scrolling): keep the rabbit beside it */
+        follow = { top: r.top, left: r.left };
+        var sp = spotFor(r, ringTarget); guideV = sp.v; guideH = sp.h; roamPos = { x: sp.x, y: sp.y }; moveSoon();
+      }
+    }
     ringRaf = window.requestAnimationFrame(ringLoop);
   }
   function ringOn(el, on) {
@@ -902,14 +947,17 @@
     widget.el.insertBefore(ringEl, widget.stage); ringTarget = el; ringLoop();
   }
 
-  /* ---- where to stand: next to the target, never on top of it, with room for the bubble ---- */
+  /* ---- where to stand: next to the target, never on top of it, with room for the bubble (and OUTSIDE a side panel such as the cart drawer) ---- */
   function spotFor(r, el) {
     var vw = window.innerWidth, vh = window.innerHeight, W = charW(), H = charH(), m = 8, g = 14, bw = Math.min(310, vw - 32), bh = 130;
     var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     var hdr = !!(el.closest && el.closest('.nkn-header')), wide = r.width > r.height * 2.4 || r.width > vw * 0.5;
+    var dlg = el.closest && el.closest('#cart-drawer,[role="dialog"],[aria-modal="true"]'), box = null, bx;
+    if (dlg) { bx = dlg.getBoundingClientRect(); if (bx.width > 120 && bx.width < vw - 40) box = bx; }   /* a side panel: stand OUTSIDE it */
     var east = { x: r.right + g, y: cy - H / 2, h: 'l' }, west = { x: r.left - g - W, y: cy - H / 2, h: 'r' };
     var south = { x: cx - W / 2, y: r.bottom + g, v: 'd' }, north = { x: cx - W / 2, y: r.top - g - H, v: 'u' };
     var order = hdr ? [south, east, west, north] : (wide ? [south, north, east, west] : [east, west, south, north]);
+    if (box) order = [box.left >= vw - box.right ? { x: box.left - g - W, y: cy - H / 2, h: 'r' } : { x: box.right + g, y: cy - H / 2, h: 'l' }].concat(order);
     var i, c, best = null, okX, okY, okH, okV, hit;
     for (i = 0; i < order.length; i++) {
       c = order[i];
@@ -919,6 +967,7 @@
       okH = c.h === 'l' ? c.x + bw <= vw - m : c.x + W - bw >= m;
       okV = c.v === 'u' ? c.y - m >= bh : vh - (c.y + H) - m >= bh;
       hit = c.x < r.right + 4 && c.x + W > r.left - 4 && c.y < r.bottom + 4 && c.y + H > r.top - 4;
+      if (box && c.x < box.right && c.x + W > box.left && c.y < box.bottom && c.y + H > box.top) hit = true;
       if (okX && okY && okH && okV && !hit) return c;
       if (!best && okX && okY && !hit) best = c;
     }
@@ -947,7 +996,7 @@
     roamPos = (best === a[0]) ? null : { x: best.x, y: best.y }; moveSoon();
   }
   function endGuide(stay) {
-    clearTimeout(guideEnd); guiding = false; ringOff(); guideV = null; guideH = null; endPoint(); place();
+    clearTimeout(guideEnd); guiding = false; ringOff(); follow = null; coverAt = 0; guideV = null; guideH = null; endPoint(); place();
     if (!stay && !tour.on) { clearTimeout(settleTimer); settleTimer = window.setTimeout(settle, 2200); }
   }
 
@@ -964,10 +1013,11 @@
       window.setTimeout(function () { guideShow(el, text, o); }, calm() ? 80 : 700);
       return true;
     }
+    if (!uncovered(el, r)) return false;                                 /* an open drawer / modal is on top of it: never point at a hidden thing */
     clearTimeout(settleTimer); clearTimeout(guideEnd); closePop(true);
     var sp = spotFor(r, el), ms = o.ms || dur(text), delay = calm() ? 0 : 750, W = charW(), H = charH();
     guideV = sp.v; guideH = sp.h; roamPos = { x: sp.x, y: sp.y }; guiding = true; moveSoon();
-    ringOn(el, o.ring !== false);
+    ringOn(el, o.ring !== false); follow = { top: r.top, left: r.left };
     window.setTimeout(function () {                                      /* it has arrived: turn the head toward the target and speak */
       if (!guiding) return;
       var dx = r.left + r.width / 2 - (sp.x + W / 2), dy = r.top + r.height / 2 - (sp.y + H / 2);
@@ -1073,19 +1123,23 @@
   /* ---- reactions to what the visitor does ---- */
   function guideCartAdded() {
     if (onCheckout || CFG.guide === false || cartHints >= 4) return;
-    var c = cartBtn(); if (!c) return;
     var first = !SS.get('nkg_cart1'); SS.set('nkg_cart1', '1'); cartHints++;
+    if (cartOpen()) {                                                    /* the bag opened by itself: the header icon is covered, so point at Checkout inside it */
+      whenStable(cartCheckoutEl, function (b) { guideShow(b, 'Added! Tap Checkout when you are ready.', { force: first, mute: !first }); });
+      return;
+    }
+    var c = cartBtn(); if (!c) return;
     guideShow(c, first ? 'Added! Tap the bag to review your routine and check out.' : 'Nice pick. Keep browsing, or tap the bag when you are ready.',
       first ? { force: true, href: 'checkout.html', hrefLabel: 'Go to checkout' } : { mute: true });
   }
   function guideCartOpened() {
     if (onCheckout || CFG.guide === false || muted() || cartCount() < 1 || Number(SS.get('nkg_open') || 0) >= 2) return;
     window.setTimeout(function () {
-      var dr = doc.getElementById('cart-drawer'), b = dr && (pickEl('#cart-drawer a[href*="checkout"]', false) || textEl(/check\s*out|proceed/i, dr, false));
-      if (!b || !vis(b, true)) return;
-      SS.set('nkg_open', String(Number(SS.get('nkg_open') || 0) + 1));
-      guideShow(b, 'Ready? Tap Checkout. Free Express Shipping, and a 30-day guarantee on every order.', { mute: true });
-    }, 800);
+      whenStable(cartCheckoutEl, function (b) {
+        SS.set('nkg_open', String(Number(SS.get('nkg_open') || 0) + 1));
+        guideShow(b, 'Ready? Tap Checkout. Free Express Shipping, and a 30-day guarantee on every order.', { mute: true });
+      });
+    }, 300);
   }
 
   /* ---- "where is ...?" in the ask box ---- */
