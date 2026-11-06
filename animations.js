@@ -14,6 +14,8 @@
  *                         Palette: obsidian #0D0D0E, royal purple / plum #3B2050 + #5A3578, warm golden highlights. window.NK_GLOW = { enabled:false } turns it off.
  *                         Reduced motion: the glow is shown still. Paused while the tab is hidden.
  *
+ *   7. MICRO-INTERACTIONS  this file also loads micro-interactions.js (hover border beam + spotlight, magnetic CTAs, section fade); see that file.
+ *
  * Loading: nav.js loads this file from its own folder on every page. You can also add <script src="animations.js" defer></script> to a page's <head>
  * to start the effects a little earlier; it never runs twice.
  * Opt out per element: data-nk-noreveal (reveal), data-nk-native (<details> / hidden panels). Opt in any element to the card reveal: data-nk-reveal.
@@ -297,5 +299,14 @@
     centerIcons();
     window.addEventListener('load', function () { centerIcons(); });
   }
+  /* ====================================================================== 7. MICRO-INTERACTIONS LOADER */
+  (function loadFx() {
+    if (window.NKFX || doc.getElementById('nk-fx-loader') || doc.querySelector('script[src*="micro-interactions.js"]')) return;
+    var me = doc.currentScript, el = doc.createElement('script');
+    el.id = 'nk-fx-loader'; el.async = true;
+    el.src = (me && me.src && /animations\.js/.test(me.src)) ? me.src.replace('animations.js', 'micro-interactions.js') : 'micro-interactions.js';
+    (doc.head || root).appendChild(el);
+  })();
+
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', start); else start();
 })();
