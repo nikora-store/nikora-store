@@ -62,6 +62,7 @@
     var href = 'product.html?id=' + encodeURIComponent(p.id);
     var sl = window.NKShipping && NKShipping.cardLine(p.id), shipLine = sl ? '<div class="nk-ship">' + esc(sl) + '</div>' : '';   /* supplier-based estimate (shipping-rules.js) */
     var main = B.imagesOf(p)[0];                       /* the product's Firebase photo, or the branded placeholder (never lib/products.js) */
+    var isBest = B.badges(p).indexOf('BESTSELLER') > -1;   /* only real bestsellers get the hover border beam (micro-interactions.js) */
     var badges = B.badges(p).map(function(t){ return '<span class="nk-badge best">' + esc(t) + '</span>'; }).join('');
     if(sale) badges += '<span class="nk-badge sale">Save $' + (was - price).toFixed(2) + '</span>';
     var st = B.stockOf ? B.stockOf(p) : { state: p.lowStock === true ? 'low' : 'in', left: null, label: 'Low stock' };   /* real stock fields (bestsellers.js stockOf) */
@@ -71,7 +72,7 @@
     /* NIKORA Rabbit tip: the product's own `mascotTip` text (admin field, <= 140 chars). mascot.js turns this placeholder into the one-line callout. */
     var tipTxt = String(p.mascotTip || '').trim().slice(0, 140);
     var tip = tipTxt ? '<div data-nk-mascot-tip="' + esc(tipTxt) + '" data-nk-mascot-mini></div>' : '';
-    return '<article class="glass-card product-card nk-card' + (st.state === 'out' ? ' is-soldout' : '') + '" data-bs-card data-bs-id="' + id + '" data-product-id="' + id + '">' +
+    return '<article class="glass-card product-card nk-card' + (isBest ? ' nk-bs' : '') + (st.state === 'out' ? ' is-soldout' : '') + '" data-bs-card data-bs-id="' + id + '" data-product-id="' + id + '">' +
       '<a class="nk-media" href="' + href + '" aria-label="' + name + '">' +
         (badges ? '<span class="nk-badges">' + badges + '</span>' : '') +
         '<img data-bs-main data-bs-src0="' + esc(main) + '" src="' + esc(main) + '" alt="' + name + '" loading="lazy" onerror="window.NKImgFail&amp;&amp;NKImgFail(this)">' +
