@@ -14,6 +14,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="view-transitions.js"></script>
 <title>Terms of Service — NIKORA</title>
 <meta name="description" content="NIKORA Terms of Service: using our website, product and wellness notice, orders and payments, shipping, returns and the 30-day guarantee, reviews, liability. Questions? nikora.support@gmail.com">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -65,7 +66,7 @@ html{scroll-behavior:smooth;}
 body {
   background: linear-gradient(-45deg, #FAF7F2, #F8F4F0, #F5EFE6, #FAF7F2);
   background-size: 400% 400%;
-  animation: gradientShift 12s ease infinite;
+  background-position: 0% 50%;
   margin:0;
   color:var(--text);
   font-family:'Montserrat',sans-serif;
@@ -77,12 +78,19 @@ body {
 [data-theme="dark"] body {
   background: linear-gradient(-45deg, #0D0B12, #170E1B, #2A0F1D, #0D0B12);
   background-size: 400% 400%;
-  animation: gradientShift 12s ease infinite;
+  background-position: 0% 50%;
 }
 @keyframes gradientShift {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
+}
+/* gradientShift runs on DESKTOP only (>= 769px) and only without a reduced-motion preference; phones and tablets keep the gradient static for smooth 60 FPS scrolling. */
+@media (min-width:769px) and (prefers-reduced-motion:no-preference){
+  body, [data-theme="dark"] body{animation:gradientShift 12s ease infinite;}
+}
+@media (max-width:768px){
+  body, [data-theme="dark"] body{animation:none !important; background-position:0% 50%;}
 }
 @media (prefers-reduced-motion: reduce){
   body{animation:none;}
@@ -736,7 +744,7 @@ h1.f-title em{font-style:italic; color:var(--gold);}
   <article class="glass-card pv-card reveal">
     <header class="pv-card-head"><span class="pv-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span><div><span class="pv-kicker">Section 4</span><h2 id="policies-guarantee-h">Shipping, Returns &amp; Guarantee</h2></div></header>
     <p class="pv-lede">These pages are part of our terms and explain the details.</p>
-    <div class="pv-sub"><h3>Our Promise in Brief</h3><p>Every order is covered by a <strong>30-Day Money-Back Guarantee</strong> for unopened, unused items in their original packaging, plus free reshipment or a full refund if your order arrives defective, damaged or lost. Shipping is free: orders are processed in 1&ndash;3 business days and delivered in 5&ndash;12 business days with tracking.</p><div class="pv-links"><a class="pv-linkcard" href="shipping.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg><strong>Shipping Policy</strong><span>Processing, transit, tracking and customs.</span></a><a class="pv-linkcard" href="returns.html#return-policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg><strong>Refund &amp; Return Policy</strong><span>Eligibility, return steps and refund timing.</span></a><a class="pv-linkcard" href="guarantee.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2l7 4v6c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-4z"/><path d="M9 12l2 2 4-4"/></svg><strong>30-Day Guarantee</strong><span>Money-back and loss &amp; damage protection.</span></a></div></div>
+    <div class="pv-sub"><h3>Our Promise in Brief</h3><p>Every order is covered by a <strong>30-Day Money-Back Guarantee</strong> for unopened, unused items in their original packaging, plus free reshipment or a full refund if your order arrives defective, damaged or lost. Shipping is free on orders of $50.00 and above (a flat $4.99 below that). Every order is bought and inspected in South Korea in 2&ndash;4 business days, then shipped from Busan by FedEx, DHL or K-Packet in 5&ndash;10 business days with tracking.</p><p><strong>International orders and customer responsibility.</strong> NIKORA Store buys your items in South Korea and dispatches them from Busan, so every order is a cross-border shipment. You are responsible for giving a correct and complete delivery address, for paying any import duties, tariffs or customs fees charged in your country, and for accepting delivery. If a parcel is returned to South Korea because of an incorrect address, unpaid duties, tariffs or customs fees, or a refused delivery, the <strong>international return shipping cost is non-refundable</strong>. Items that arrive defective or damaged are fully covered: we reship them or refund you in full.</p><div class="pv-links"><a class="pv-linkcard" href="shipping.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg><strong>Shipping Policy</strong><span>Processing, transit, tracking and customs.</span></a><a class="pv-linkcard" href="returns.html#return-policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg><strong>Refund &amp; Return Policy</strong><span>Eligibility, return steps and refund timing.</span></a><a class="pv-linkcard" href="guarantee.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2l7 4v6c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-4z"/><path d="M9 12l2 2 4-4"/></svg><strong>30-Day Guarantee</strong><span>Money-back and loss &amp; damage protection.</span></a></div></div>
   </article>
 </section>
 <section class="pv-block" id="content-liability" aria-labelledby="content-liability-h">
