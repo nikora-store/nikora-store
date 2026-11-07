@@ -14,6 +14,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="view-transitions.js"></script>
 <title>Returns &amp; 30-Day Guarantee Portal — NIKORA</title>
 <meta name="description" content="Start a return or replacement request in under 2 minutes, or check the status of an existing return. 30-day money-back guarantee. Support: nikora.support@gmail.com.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -65,7 +66,7 @@ html{scroll-behavior:smooth;}
 body {
   background: linear-gradient(-45deg, #FAF7F2, #F8F4F0, #F5EFE6, #FAF7F2);
   background-size: 400% 400%;
-  animation: gradientShift 12s ease infinite;
+  background-position: 0% 50%;
   margin:0;
   color:var(--text);
   font-family:'Montserrat',sans-serif;
@@ -77,12 +78,19 @@ body {
 [data-theme="dark"] body {
   background: linear-gradient(-45deg, #0D0B12, #170E1B, #2A0F1D, #0D0B12);
   background-size: 400% 400%;
-  animation: gradientShift 12s ease infinite;
+  background-position: 0% 50%;
 }
 @keyframes gradientShift {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
+}
+/* gradientShift runs on DESKTOP only (>= 769px) and only without a reduced-motion preference; phones and tablets keep the gradient static for smooth 60 FPS scrolling. */
+@media (min-width:769px) and (prefers-reduced-motion:no-preference){
+  body, [data-theme="dark"] body{animation:gradientShift 12s ease infinite;}
+}
+@media (max-width:768px){
+  body, [data-theme="dark"] body{animation:none !important; background-position:0% 50%;}
 }
 @media (prefers-reduced-motion: reduce){
   body{animation:none;}
@@ -964,7 +972,7 @@ button.btn-ghost:hover{color:var(--gold); border-bottom-color:var(--gold);}
         <div class="rp-item"><h3>30-day money-back window</h3><p>You can ask for a refund within <strong>30 days</strong> of receiving your order. Contact us or use the return form above and we will confirm whether your item is eligible.</p></div>
         <div class="rp-item"><h3>Eligible items</h3><p>Items that are <strong>unopened and unused, in their original packaging</strong>, with all accessories and the charger included. Used or opened items are not eligible for change-of-mind returns, but items that are defective or damaged are always covered (see below).</p></div>
         <div class="rp-item"><h3>How to start a return</h3><p>Use the return form on this page with your <strong>Order ID</strong> (it starts with #NK-), or email <a href="mailto:nikora.support@gmail.com">nikora.support@gmail.com</a>. We will reply with return instructions. Please wait for them before sending anything back.</p></div>
-        <div class="rp-item"><h3>Return shipping costs</h3><p>For change-of-mind returns, <strong>customers are responsible for return shipping</strong>. If your item is defective, damaged in shipping or lost, we cover it with a free reshipment or a full refund, your choice.</p></div>
+        <div class="rp-item"><h3>Return shipping costs (international orders)</h3><p>Your order ships from <strong>Busan, South Korea</strong> (Delivered Korea hub, Suite A03231), so returns travel back to South Korea. For change-of-mind returns, <strong>customers are responsible for the international return shipping cost</strong>. If your item is defective, damaged in shipping or lost, we cover it in full, including the return shipping, with a free reshipment or a full refund, your choice.</p></div><div class="rp-item"><h3>Customer error: return shipping is non-refundable</h3><p>If a parcel cannot be delivered because of an <strong>incorrect or incomplete address</strong>, <strong>unpaid import duties, tariffs or customs fees</strong>, or a <strong>refused delivery</strong>, it is sent back to South Korea at the customer&rsquo;s expense. The <strong>international return shipping cost back to South Korea is non-refundable</strong>. Please check your address at checkout and be ready to pay any local duties. See also the <a href="shipping.html#customs-taxes">Shipping Policy</a>.</p></div>
         <div class="rp-item"><h3>When you get your refund</h3><p>After your return arrives and is checked in, we refund the full purchase price to your <strong>original payment method within 5&ndash;7 business days</strong>. Your bank may take a little longer to show it.</p></div>
         <div class="rp-item"><h3>Defective, damaged or lost orders</h3><p>Tell us as soon as you notice a problem and include photos if the item is damaged. If tracking has been inactive for more than 14 days, or your parcel has been in transit for more than 30 days, it counts as lost and we reship for free or refund you in full.</p></div>
         <div class="rp-item"><h3>Cancelling an order</h3><p>Email us with your order number as soon as possible. If the order has not been dispatched yet, we will cancel it and refund you. After dispatch, you can use the 30-day guarantee instead.</p></div>
@@ -987,7 +995,7 @@ button.btn-ghost:hover{color:var(--gold); border-bottom-color:var(--gold);}
         <article class="glass-card help-card reveal">
           <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
           <h3>Who pays for return shipping?</h3>
-          <p><strong>It depends on the reason.</strong> Customers are responsible for return shipping costs for change-of-mind returns. Returns apply to unopened/unused items within 30 days. If your item is defective, damaged in shipping or lost, we cover it with a free reshipment or a full refund.</p>
+          <p><strong>It depends on the reason.</strong> Orders ship from Busan, South Korea, so returns go back to South Korea. Customers pay the international return shipping for change-of-mind returns and for customer error (incorrect address, unpaid duties or customs fees, refused delivery), and that cost is non-refundable. Returns apply to unopened/unused items within 30 days. If your item is defective, damaged in shipping or lost, we cover it in full with a free reshipment or a full refund.</p>
           <a class="more" href="guarantee.html#returns">Read the return policy</a>
         </article>
         <article class="glass-card help-card reveal">
