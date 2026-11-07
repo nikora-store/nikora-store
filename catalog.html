@@ -17,6 +17,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="view-transitions.js"></script>
 <title>Catalog — NIKORA</title>
 <meta name="description" content="Shop COSRX, Anua, Beauty of Joseon, Skin1004, Laneige, Biodance and Round Lab with NIKORA beauty tech, filtered by skin concern.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -84,12 +85,20 @@ body{
   margin:0;
   background: linear-gradient(-45deg, var(--canvas-a), var(--canvas-b), var(--canvas-c), var(--canvas-a));
   background-size: 400% 400%;
-  animation: gradientShift 12s ease infinite;
+  background-position: 0% 50%;
   color:var(--text);
   font-family:'Montserrat',sans-serif;
   font-weight:400;
   -webkit-font-smoothing:antialiased;
   overflow-x:hidden;
+}
+/* gradientShift: continuous background motion on DESKTOP only (>= 769px) and only when the visitor has not asked for reduced motion.
+   Phones / tablets and prefers-reduced-motion keep the gradient static, so scrolling stays smooth at 60 FPS. */
+@media (min-width:769px) and (prefers-reduced-motion:no-preference){
+  body{animation:gradientShift 12s ease infinite;}
+}
+@media (max-width:768px){
+  body{animation:none !important; background-position:0% 50%;}
 }
 @media (prefers-reduced-motion: reduce){
   body{animation:none;}
@@ -112,7 +121,7 @@ button{font-family:inherit;cursor:pointer;}
 .page-head p{margin:0; color:var(--text-soft); font-size:14.5px; max-width:520px;}
 
 /* ---------------- TOOLBAR ---------------- */
-.toolbar-wrap{position:sticky; top:var(--hdr-h, 73px); z-index:300; padding-top:14px; padding-bottom:14px;}
+.toolbar-wrap{position:relative; top:auto; z-index:5; padding-top:14px; padding-bottom:14px;}   /* normal document flow: scrolls away with the page and never covers the product grid (z-index only keeps its dropdowns above the cards) */
 .toolbar{
   background:var(--card-bg); backdrop-filter:blur(12px); border:1px solid var(--card-border);
   border-radius:20px; padding:16px 20px; box-shadow:var(--shadow-ambient);
@@ -134,6 +143,52 @@ button{font-family:inherit;cursor:pointer;}
   padding:10px 16px; color:var(--text); font-family:inherit; font-size:13px; font-weight:500; cursor:pointer;
 }
 .sort-select option{background:var(--canvas-solid); color:var(--text);}
+
+/* ---------------- CUSTOM SORT DROPDOWN ----------------
+   Replaces the native <select> (its option popup is drawn by the OS: white in dark mode). A hidden #sort-select stays in sync and fires `change`,
+   so renderGrid, view-transitions.js and every other script keep working unchanged. */
+.nk-sort{position:relative; flex:none; --sort-bg:#14111A; --sort-hover:rgba(var(--gold-rgb),.14);}
+[data-theme="light"] .nk-sort{--sort-bg:#FFFDF9;}
+.nk-sort-btn{
+  display:inline-flex; align-items:center; gap:8px; padding:10px 14px 10px 16px; border-radius:100px;
+  border:1px solid var(--line); background:var(--surface-tint); color:var(--text);
+  font-family:inherit; font-size:13px; font-weight:500; cursor:pointer;
+  transition:border-color .2s ease, background .2s ease, box-shadow .2s ease;
+}
+.nk-sort-btn:hover, .nk-sort.is-open .nk-sort-btn{border-color:rgba(var(--gold-rgb),.75);}
+.nk-sort.is-open .nk-sort-btn{box-shadow:0 0 0 3px rgba(var(--gold-rgb),.14);}
+.nk-sort-label{font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text-faint);}
+.nk-sort-value{white-space:nowrap;}
+.nk-sort-chev{width:14px; height:14px; flex:none; stroke:var(--gold); fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; transition:transform .25s cubic-bezier(.2,.8,.2,1);}
+.nk-sort.is-open .nk-sort-chev{transform:rotate(180deg);}
+.nk-sort-list{
+  position:absolute; right:0; top:calc(100% + 8px); z-index:30; min-width:100%; width:max-content; max-width:min(300px, 86vw);
+  margin:0; padding:6px; list-style:none; border-radius:16px; outline:none;
+  background:var(--sort-bg); border:1px solid rgba(var(--gold-rgb),.45); box-shadow:0 22px 50px -18px rgba(0,0,0,.55);
+  transform-origin:top right; opacity:0; visibility:hidden; pointer-events:none; transform:translateY(-6px) scale(.97);
+  transition:opacity .18s ease, transform .22s cubic-bezier(.2,.8,.2,1), visibility 0s linear .22s;
+}
+.nk-sort.is-open .nk-sort-list{opacity:1; visibility:visible; pointer-events:auto; transform:none; transition-delay:0s;}
+.nk-sort-opt{
+  display:flex; align-items:center; justify-content:space-between; gap:16px; padding:10px 12px; border-radius:10px;
+  font-size:13px; font-weight:500; color:var(--text-soft); cursor:pointer; white-space:nowrap; transition:background .15s ease, color .15s ease;
+}
+.nk-sort-opt:hover, .nk-sort-opt.is-active{background:var(--sort-hover); color:var(--text);}
+.nk-sort-opt[aria-selected="true"]{color:var(--gold); font-weight:700;}
+.nk-sort-opt[aria-selected="true"]::after{content:""; flex:none; width:5px; height:9px; margin-right:2px; border:solid var(--gold); border-width:0 2px 2px 0; transform:rotate(45deg) translateY(-1px);}
+.nk-sort-native{display:none !important;}
+@media (max-width:520px){
+  .nk-sort{width:100%;}
+  .nk-sort-btn{width:100%; justify-content:space-between;}
+  .nk-sort-list{left:0; right:0; width:auto; max-width:none;}
+}
+@media (prefers-reduced-motion:reduce){ .nk-sort-list, .nk-sort-chev, .nk-sort-btn, .nk-sort-opt{transition-duration:.001ms !important;} }
+
+/* active ?category= filter chip (LED Masks, Microcurrent Devices, Serums & Skincare) + search status */
+.alias-chip{display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border-radius:100px; border:1px solid var(--gold); background:rgba(var(--gold-rgb),.12); color:var(--gold); font-size:12px; font-weight:700; cursor:pointer; transition:background .2s ease, color .2s ease;}
+.alias-chip:hover{background:var(--gold); color:#241c0f;}
+.alias-chip svg{width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:2.4; stroke-linecap:round;}
+.search-pending{grid-column:1/-1; text-align:center; padding:70px 30px; color:var(--text-faint); font-size:13.5px;}
 .price-filter{display:flex; align-items:center; gap:12px; min-width:220px;}
 .price-filter label{font-size:12px; color:var(--text-soft); white-space:nowrap; font-weight:600;}
 .price-filter input[type="range"]{
@@ -194,12 +249,12 @@ button{font-family:inherit;cursor:pointer;}
 .routine-fine{margin:14px 0 0; font-size:11.5px; color:var(--text-faint);}
 @media (max-width:720px){ .routine-cols{grid-template-columns:1fr;} }
 
-/* ---------------- MOBILE: search/filter bar scrolls with page, never sticks/floats ---------------- */
+/* ---------------- search/filter bar scrolls with the page on every screen size, never sticks/floats ---------------- */
 @media (max-width:768px){
   .toolbar-wrap, .search-filter-container, .catalog-controls, .filter-bar{
-    position:static !important;
+    position:relative !important;
     top:auto !important;
-    z-index:auto !important;
+    z-index:5 !important;
   }
 }
 
@@ -640,7 +695,7 @@ html{scroll-padding-top:calc(var(--hdr-h) + 12px);}
 /* Landscape phones: the search/filter panel scrolls away with the page instead of sticking and covering the grid.
    (If you prefer it sticky, replace "static" with "sticky" and keep the max-height + scroll below.) */
 @media (orientation:landscape) and (max-height:500px){
-  .toolbar-wrap, .search-filter-container, .catalog-controls, .filter-bar{position:static !important; top:auto !important; z-index:auto !important; padding-top:8px; padding-bottom:8px;}
+  .toolbar-wrap, .search-filter-container, .catalog-controls, .filter-bar{position:relative !important; top:auto !important; z-index:5 !important; padding-top:8px; padding-bottom:8px;}
   .toolbar{padding:10px 14px; gap:8px; max-height:60vh; overflow-y:auto; -webkit-overflow-scrolling:touch;}
   .toolbar-row{gap:8px;}
   .search-field{min-width:160px; padding:7px 14px;}
@@ -698,17 +753,31 @@ html{scroll-padding-top:calc(var(--hdr-h) + 12px);}
           <input type="range" id="price-range" min="0" max="200" step="5" value="200">
           <span id="price-filter-value">$200</span>
         </div>
-        <select class="sort-select" id="sort-select">
-          <option value="featured">Featured</option>
-          <option value="price-asc">Price: Low to High</option>
-          <option value="price-desc">Price: High to Low</option>
-          <option value="sale">On Sale (Discounts Only)</option>
-          <option value="bestsellers">Bestsellers</option>
-        </select>
+        <div class="nk-sort" id="nk-sort">
+          <button type="button" class="nk-sort-btn" id="sort-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="sort-list">
+            <span class="nk-sort-label">Sort</span><span class="nk-sort-value" id="sort-value">Featured</span>
+            <svg class="nk-sort-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <ul class="nk-sort-list" id="sort-list" role="listbox" tabindex="-1" aria-label="Sort products">
+            <li class="nk-sort-opt" role="option" id="sort-opt-featured" data-value="featured" aria-selected="true">Featured</li>
+            <li class="nk-sort-opt" role="option" id="sort-opt-price-asc" data-value="price-asc" aria-selected="false">Price: Low to High</li>
+            <li class="nk-sort-opt" role="option" id="sort-opt-price-desc" data-value="price-desc" aria-selected="false">Price: High to Low</li>
+            <li class="nk-sort-opt" role="option" id="sort-opt-sale" data-value="sale" aria-selected="false">On Sale (Discounts Only)</li>
+            <li class="nk-sort-opt" role="option" id="sort-opt-bestsellers" data-value="bestsellers" aria-selected="false">Bestsellers</li>
+          </ul>
+          <select class="nk-sort-native" id="sort-select" aria-hidden="true" tabindex="-1" hidden>
+            <option value="featured">Featured</option>
+            <option value="price-asc">Price: Low to High</option>
+            <option value="price-desc">Price: High to Low</option>
+            <option value="sale">On Sale (Discounts Only)</option>
+            <option value="bestsellers">Bestsellers</option>
+          </select>
+        </div>
       </div>
       <div class="toolbar-row" style="justify-content:space-between;">
         <div class="category-tabs" id="category-tabs"></div>
         <div class="toolbar-end">
+          <button type="button" class="alias-chip" id="alias-chip" hidden></button>
           <div class="result-count" id="result-count"></div>
         </div>
       </div>
@@ -917,9 +986,13 @@ if(!window.NKBestsellers){
 var state = {
   search: "",
   category: "All Products",
+  alias: "",              /* active ?category= filter key: led-masks | microcurrent | serums-skincare (see CAT_ALIASES) */
   concern: "",
   maxPrice: 200,
-  sort: "featured"
+  sort: "featured",
+  smartIds: {},           /* product ids the header-search engine (semantic-search.js) returned for smartFor */
+  smartFor: "",
+  smartPending: false
 };
 
 
@@ -930,7 +1003,7 @@ function saveCatalogProducts(list){
 /* ================= FIREBASE REALTIME SYNC =================
    Root path '/products' is shared across catalog.html / product.html /
    index.html. Entries here use THIS page's schema
-   ({id,name,category,price,oldPrice,bestseller,lowStock,desc,img,...}),
+   ({id,name,category,price,oldPrice,bestseller,lowStock,stockCount,lowStockThreshold,scarcityMode,stockStatus,desc,img,...}),
    keyed by numeric id as a string ("1".."11", "12" for new items). This
    never collides with index.html's homepage-card overrides, which live
    under different, non-numeric keys (e.g. "wand") in the same object.
@@ -1846,6 +1919,46 @@ function renderRoutine(){
 }
 
 /* ================= 3. SEARCH / FILTER / SORT / RENDER ================= */
+/* ---- ?category= deep links (header "All Shop" menu): friendly keys resolved to a product predicate; exact category names also work ---- */
+function nkSlug(s){ return String(s == null ? '' : s).toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+function nkText(p){ return [p.name, p.category, p.desc, tagsOf(p).join(' ')].join(' '); }
+function nkIsDevice(p){ return nkRoleOf(p) === 'device' || /beauty[\s-]*tech|device/i.test(String(p.category || '')); }
+function nkIsBundle(p){ return nkRoleOf(p) === 'bundle' || /bundle/i.test(String(p.category || '')); }
+var CAT_ALIASES = {
+  'led-masks':       { label:'LED Masks',            test:function(p){ return nkIsDevice(p) && /\bled\b|light[\s-]*therapy|red[\s-]*light/i.test(nkText(p)); } },
+  'microcurrent':    { label:'Microcurrent Devices', test:function(p){ return nkIsDevice(p) && /microcurrent|\bems\b|electroporation|wand/i.test(nkText(p)); } },
+  'serums-skincare': { label:'Serums & Skincare',    test:function(p){ return !nkIsDevice(p) && !nkIsBundle(p); } }
+};
+var CAT_SYNONYM = { 'serums-and-skincare':'serums-skincare', 'skincare':'serums-skincare', 'microcurrent-devices':'microcurrent', 'led-mask':'led-masks',
+  'bestsellers':'best-sellers', 'best-seller':'best-sellers', 'all-shop':'all', 'all-products':'all', 'shop':'all' };
+function applyCategoryParam(raw){
+  var key = nkSlug(raw); key = CAT_SYNONYM[key] || key;
+  state.alias = '';
+  if(!key || key === 'all'){ state.category = 'All Products'; return; }
+  if(key === 'best-sellers'){ state.category = 'Bestsellers'; return; }
+  if(CAT_ALIASES[key]){ state.category = 'All Products'; state.alias = key; return; }
+  for(var i = 0; i < CATEGORIES.length; i++){ if(nkSlug(CATEGORIES[i]) === key){ state.category = CATEGORIES[i]; return; } }
+}
+function renderAliasChip(){
+  var el = document.getElementById('alias-chip'); if(!el) return;
+  var a = state.alias && CAT_ALIASES[state.alias];
+  if(!a){ el.hidden = true; el.textContent = ''; return; }
+  el.hidden = false;
+  el.innerHTML = escapeHtml(a.label) + '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  el.setAttribute('aria-label', 'Clear filter: ' + a.label);
+}
+
+/* ---- search matching: instant literal match (whole phrase, or every word) + the smart results of the header search engine ---- */
+var SEARCH_STOP = { 'for':1, 'the':1, 'a':1, 'an':1, 'and':1, 'of':1, 'my':1, 'to':1, 'with':1, 'in':1, 'on':1, 'i':1, 'need':1, 'want':1, 'looking':1, 'something':1, 'that':1, 'is':1, 'me':1 };
+function searchHaystack(p){ return [p.name, p.brand, p.category, p.desc, tagsOf(p).join(' ')].join(' ').toLowerCase(); }
+function searchMatches(p, q){
+  var h = searchHaystack(p);
+  if(h.indexOf(q) !== -1) return true;
+  var toks = q.replace(/#/g, ' ').split(/\s+/).filter(function(t){ return t && !SEARCH_STOP[t]; });
+  if(toks.length && toks.every(function(t){ return h.indexOf(t) !== -1; })) return true;
+  return state.smartFor === q && !!state.smartIds[String(p.id)];
+}
+
 function getFilteredSortedProducts(){
   var list = ALL_PRODUCTS.slice();
   var onBestsellers = state.category === 'Bestsellers';
@@ -1853,15 +1966,15 @@ function getFilteredSortedProducts(){
 
   if(state.search.trim()){
     var q = state.search.trim().toLowerCase();
-    var qTag = q.replace(/^#/, '');
-    list = list.filter(function(p){
-      return p.name.toLowerCase().indexOf(q) !== -1 || String(p.brand || '').toLowerCase().indexOf(q) !== -1 || tagsOf(p).some(function(t){ return t.toLowerCase().indexOf(qTag) !== -1; });
-    });
+    list = list.filter(function(p){ return searchMatches(p, q); });
   }
   if(onBestsellers){
     list = list.filter(function(p){ return p.bestseller; });   // isBestseller from lib/products.js arrives here as `bestseller`
   } else if(state.category && state.category !== 'All Products'){
     list = list.filter(function(p){ return p.category === state.category; });
+  }
+  if(state.alias && CAT_ALIASES[state.alias]){
+    list = list.filter(CAT_ALIASES[state.alias].test);
   }
   if(state.concern){
     list = list.filter(function(p){ return tagsOf(p).indexOf(state.concern) !== -1; });
@@ -1889,12 +2002,18 @@ function productCardHtml(p){
 
 function renderGrid(){
   var grid = document.getElementById('product-grid');
+  renderAliasChip();
   var list = getFilteredSortedProducts();
 
   document.getElementById('result-count').textContent = list.length + ' product' + (list.length === 1 ? '' : 's');
 
   if(list.length === 0){
-    grid.innerHTML = '<div class="no-results">No products match your search and filters. Try another skin concern, widen your price range or clear the search.</div>';
+    var qTxt = state.search.trim();
+    if(qTxt && state.smartPending){                       /* the smart search is still answering: a neutral line instead of a false "0 products" */
+      grid.innerHTML = '<div class="search-pending" role="status">Searching for \u201c' + escapeHtml(qTxt) + '\u201d\u2026</div>';
+      return;
+    }
+    grid.innerHTML = '<div class="no-results">' + (qTxt ? 'No products match \u201c' + escapeHtml(qTxt) + '\u201d. ' : 'No products match your filters. ') + 'Try another skin concern, widen your price range or clear the search.</div>';
     return;
   }
 
@@ -1971,10 +2090,7 @@ function setTheme(mode){
 function bindEvents(){
   NKBestsellers.bindGallery(document.getElementById('product-grid'));
 
-  document.getElementById('search-input').addEventListener('input', function(e){
-    state.search = e.target.value;
-    renderGrid();
-  });
+  /* search box: handled by initCatalogSearch() (instant filter + the same smart engine as the header search) */
 
   document.getElementById('price-range').addEventListener('input', function(e){
     state.maxPrice = Number(e.target.value);
@@ -1991,6 +2107,7 @@ function bindEvents(){
     var btn = e.target.closest('.cat-tab');
     if(!btn) return;
     state.category = btn.getAttribute('data-cat');
+    state.alias = '';
     renderCategoryTabs();
     renderGrid();
   });
@@ -2046,6 +2163,108 @@ function bindEvents(){
   });
 }
 
+/* ================= CUSTOM SORT MENU + CATALOG SEARCH (header-search engine) ================= */
+function initSortMenu(){
+  var wrap = document.getElementById('nk-sort'), btn = document.getElementById('sort-btn'), list = document.getElementById('sort-list');
+  var sel = document.getElementById('sort-select'), label = document.getElementById('sort-value');
+  if(!wrap || !btn || !list || !sel) return;
+  var opts = Array.prototype.slice.call(list.querySelectorAll('[role="option"]')), idx = 0, isOpen = false;
+  function current(){ for(var i = 0; i < opts.length; i++){ if(opts[i].getAttribute('data-value') === sel.value) return i; } return 0; }
+  function paint(){                                   /* label + aria-selected follow the hidden select (single source of truth) */
+    var c = current();
+    opts.forEach(function(o, i){ o.setAttribute('aria-selected', i === c ? 'true' : 'false'); });
+    label.textContent = opts[c].textContent;
+  }
+  function highlight(i){
+    idx = (i + opts.length) % opts.length;
+    opts.forEach(function(o, k){ o.classList.toggle('is-active', k === idx); });
+    list.setAttribute('aria-activedescendant', opts[idx].id);
+    if(opts[idx].scrollIntoView) opts[idx].scrollIntoView({ block:'nearest' });
+  }
+  function setOpen(o, refocus){
+    isOpen = o;
+    wrap.classList.toggle('is-open', o);
+    btn.setAttribute('aria-expanded', o ? 'true' : 'false');
+    if(o){ highlight(current()); list.focus({ preventScroll:true }); }
+    else{ opts.forEach(function(x){ x.classList.remove('is-active'); }); if(refocus) btn.focus({ preventScroll:true }); }
+  }
+  function choose(i){
+    var v = opts[i].getAttribute('data-value');
+    if(sel.value !== v){ sel.value = v; sel.dispatchEvent(new Event('change', { bubbles:true })); }   /* bindEvents + view-transitions.js listen for this */
+    setOpen(false, true);
+  }
+  sel.addEventListener('change', paint);
+  btn.addEventListener('click', function(){ setOpen(!isOpen); });
+  btn.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); if(!isOpen) setOpen(true); }
+  });
+  list.addEventListener('click', function(e){
+    var o = e.target.closest ? e.target.closest('[role="option"]') : null;
+    if(o) choose(opts.indexOf(o));
+  });
+  list.addEventListener('mousemove', function(e){
+    var o = e.target.closest ? e.target.closest('[role="option"]') : null;
+    if(o){ var i = opts.indexOf(o); if(i !== idx) highlight(i); }
+  });
+  list.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowDown'){ e.preventDefault(); highlight(idx + 1); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); highlight(idx - 1); }
+    else if(e.key === 'Home'){ e.preventDefault(); highlight(0); }
+    else if(e.key === 'End'){ e.preventDefault(); highlight(opts.length - 1); }
+    else if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); choose(idx); }
+    else if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); setOpen(false, true); }
+    else if(e.key === 'Tab'){ setOpen(false); }
+  });
+  document.addEventListener('click', function(e){ if(isOpen && !wrap.contains(e.target)) setOpen(false); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && isOpen) setOpen(false, true); });
+  paint();
+}
+
+function initCatalogSearch(){
+  var input = document.getElementById('search-input'); if(!input) return;
+  var timer = 0, token = 0;
+  function whenEngine(cb){                            /* semantic-search.js is loaded by nav.js a moment after page load: wait for it (max ~10 s) */
+    var tries = 0;
+    (function wait(){ if(window.NikoraSearch){ cb(window.NikoraSearch); return; } if(++tries < 40) setTimeout(wait, 250); })();
+  }
+  function ensureEngine(){                            /* same loader id as nav.js, so the script is never added twice */
+    if(window.NikoraSearch){ try{ window.NikoraSearch.warmup(); }catch(e){} return; }
+    if(document.getElementById('nk-search-loader') || document.querySelector('script[src*="semantic-search"]')) return;
+    var s = document.createElement('script'); s.id = 'nk-search-loader'; s.async = true; s.src = 'semantic-search.js';
+    document.head.appendChild(s);
+  }
+  function smart(q, eng){
+    var my = ++token; state.smartPending = true;
+    eng.search(q, { topK:60 }).then(function(res){
+      if(my !== token) return;
+      var ids = {}; ((res && res.hits) || []).forEach(function(h){ ids[String(h.product.id)] = true; });
+      state.smartIds = ids; state.smartFor = q; state.smartPending = false; renderGrid();
+    }).catch(function(){ if(my === token){ state.smartPending = false; renderGrid(); } });
+  }
+  function onInput(){
+    state.search = input.value;
+    var q = state.search.trim().toLowerCase();
+    clearTimeout(timer); token++;                      /* any in-flight smart search belongs to older text */
+    if(state.smartFor !== q){ state.smartIds = {}; state.smartFor = ''; }
+    state.smartPending = !!(q && window.NikoraSearch);
+    renderGrid();                                      /* instant: literal / every-word match, real time */
+    if(!q){ state.smartPending = false; return; }
+    ensureEngine();
+    timer = setTimeout(function(){ whenEngine(function(eng){ if(state.search.trim().toLowerCase() === q) smart(q, eng); }); }, 160);
+  }
+  input.addEventListener('input', onInput);
+  input.addEventListener('focus', ensureEngine);       /* warm the model up on intent, exactly like the header search button */
+  input.addEventListener('keydown', function(e){ if(e.key === 'Enter') e.preventDefault(); });
+  if(state.search){ input.value = state.search; onInput(); }
+}
+
+function initCatalogExtras(){
+  initSortMenu();
+  initCatalogSearch();
+  var chip = document.getElementById('alias-chip');
+  if(chip) chip.addEventListener('click', function(){ state.alias = ''; renderGrid(); });
+}
+
 /* ---------------- Init ---------------- */
 function init(){
   var savedTheme = null;
@@ -2059,6 +2278,10 @@ function init(){
   else if(qFilter === 'bundles') state.category = 'Bundles & Sets';
   var qConcern = (location.search.match(/[?&]concern=#?([A-Za-z]+)/) || [])[1];   // deep link: catalog.html?concern=Hydration
   if(qConcern && concernMeta(qConcern)) state.concern = concernMeta(qConcern).key;
+  var qCategory = (location.search.match(/[?&]category=([^&#]+)/) || [])[1];      // deep link from the header "All Shop" menu: catalog.html?category=led-masks | microcurrent | serums-skincare | best-sellers
+  if(qCategory){ try{ applyCategoryParam(decodeURIComponent(qCategory.replace(/\+/g, ' '))); }catch(e){} }
+  var qSearch = (location.search.match(/[?&]q=([^&#]+)/) || [])[1];               // catalog.html?q=snail
+  if(qSearch){ try{ state.search = decodeURIComponent(qSearch.replace(/\+/g, ' ')).slice(0, 120); }catch(e){} }
   renderCategoryTabs();
   renderConcernChips();
   renderRoutine();
@@ -2066,6 +2289,7 @@ function init(){
   renderCart();
   renderTrustBadges();
   bindEvents();
+  initCatalogExtras();
   initCartSync();
   initFirebaseProductsSync(); // renders instantly from local cache above, then live-updates from the cloud
   NKBestsellers.load().then(function(){ ALL_PRODUCTS = NKBestsellers.apply(ALL_PRODUCTS).map(nkApplyPromoFlag); renderGrid(); });   // re-render once /api/catalog has answered
@@ -2132,7 +2356,7 @@ if(document.readyState === 'loading'){
 })();
 </script>
 <script>
-/* Header offset: measure the fixed/sticky site header rendered by nav.js and publish it as --hdr-h (used by the sticky toolbar and anchors). */
+/* Header offset: measure the fixed/sticky site header rendered by nav.js and publish it as --hdr-h (the toolbar is no longer sticky; kept for anchors). */
 (function(){
   function measure(){
     var h = 0, kids = document.body ? document.body.children : [];
