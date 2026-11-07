@@ -14,6 +14,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="view-transitions.js"></script>
 <title>Track Your Order — NIKORA</title>
 <meta name="description" content="Track your NIKORA order in real time. Enter your order number and email to see your live order and shipment status.">
 <meta name="robots" content="noindex">
@@ -66,7 +67,7 @@ html{scroll-behavior:smooth;}
 body {
   background: linear-gradient(-45deg, #FAF7F2, #F8F4F0, #F5EFE6, #FAF7F2);
   background-size: 400% 400%;
-  animation: gradientShift 12s ease infinite;
+  background-position: 0% 50%;
   margin:0;
   color:var(--text);
   font-family:'Montserrat',sans-serif;
@@ -78,12 +79,19 @@ body {
 [data-theme="dark"] body {
   background: linear-gradient(-45deg, #0D0B12, #170E1B, #2A0F1D, #0D0B12);
   background-size: 400% 400%;
-  animation: gradientShift 12s ease infinite;
+  background-position: 0% 50%;
 }
 @keyframes gradientShift {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
+}
+/* gradientShift runs on DESKTOP only (>= 769px) and only without a reduced-motion preference; phones and tablets keep the gradient static for smooth 60 FPS scrolling. */
+@media (min-width:769px) and (prefers-reduced-motion:no-preference){
+  body, [data-theme="dark"] body{animation:gradientShift 12s ease infinite;}
+}
+@media (max-width:768px){
+  body, [data-theme="dark"] body{animation:none !important; background-position:0% 50%;}
 }
 @media (prefers-reduced-motion: reduce){
   body{animation:none;}
@@ -768,7 +776,7 @@ h1.t-title em{font-style:italic; color:var(--gold);}
               <span id="tf-btn-text">Track Order</span>
             </button>
           </div>
-          <p class="t-trk-note" id="t-trk-note"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.2M12 7.7v.1"/></svg><span>Tracking numbers activate within 1&ndash;3 business days after dispatch from warehouse.</span></p>
+          <p class="t-trk-note" id="t-trk-note"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.2M12 7.7v.1"/></svg><span>Your order is bought and inspected at our Delivered Korea hub (Suite A03231, Busan, South Korea) for 2&ndash;4 business days. Your FedEx, DHL or K-Packet tracking number appears here once the parcel leaves Busan and can take up to a day to activate.</span></p>
           <div class="tf-error" id="tf-error" role="alert" aria-live="assertive"></div>
           <div class="tf-note" id="tf-note" aria-live="polite"></div>
           <div class="t-banner" id="tf-banner" role="alert" hidden>
@@ -780,6 +788,95 @@ h1.t-title em{font-style:italic; color:var(--gold);}
             <span class="tf-secure"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>Your details are only used to find your order.</span>
           </div>
         </form>
+
+        <!-- ===== International carrier tracking (FedEx / DHL / K-Packet), routed via our 3PL hub in Busan ===== -->
+        <style>
+          .cf-card{margin-top:18px; padding:22px 24px;}
+          .cf-title{font-family:'Playfair Display',serif; font-size:20px; font-weight:500; margin:0 0 6px;}
+          .cf-sub{margin:0 0 14px; font-size:13px; line-height:1.6; color:var(--text-soft);}
+          .cf-row{display:flex; gap:12px; flex-wrap:wrap; align-items:stretch;}
+          .cf-row .tf-input{flex:1; min-width:220px;}
+          .cf-result{margin-top:16px; padding:16px 18px; border-radius:16px; border:1px solid var(--line); background:var(--surface-tint);}
+          .cf-result[hidden]{display:none;}
+          .cf-badge{display:inline-block; padding:4px 12px; border-radius:100px; background:var(--gold); color:#241c0f; font-size:11.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;}
+          .cf-badge.unknown{background:transparent; color:var(--text-soft); border:1px solid var(--line);}
+          .cf-num{margin:10px 0 0; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:15px; font-weight:600; word-break:break-all; color:var(--text);}
+          .cf-links{display:flex; flex-wrap:wrap; gap:10px; margin-top:14px;}
+          .cf-link{display:inline-flex; align-items:center; gap:8px; padding:10px 18px; border-radius:100px; font-size:12.5px; font-weight:700; border:1px solid var(--gold); color:var(--gold); background:transparent; transition:background .2s ease, color .2s ease;}
+          .cf-link:hover{background:var(--gold); color:#241c0f;}
+          .cf-link.primary{background:var(--gold); color:#241c0f;}
+          .cf-note{margin:14px 0 0; font-size:12.5px; line-height:1.6; color:var(--text-soft);}
+        </style>
+        <div class="glass-card track-card cf-card reveal" id="carrier-card">
+          <form id="carrier-form" novalidate aria-label="Track by carrier tracking number">
+            <h2 class="cf-title">Have a carrier tracking number?</h2>
+            <p class="cf-sub">Every parcel leaves our Delivered Korea hub (Suite A03231, Busan, South Korea) with <strong>FedEx</strong>, <strong>DHL</strong> or <strong>K-Packet</strong>. Paste the international tracking number from your shipping email to follow it live.</p>
+            <div class="cf-row">
+              <div class="tf-input">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                <input type="text" id="cf-number" name="carrier-number" placeholder="e.g. 794612345678 or LX123456789KR" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" aria-label="Carrier tracking number" aria-describedby="cf-error">
+              </div>
+              <button type="submit" class="btn-primary tf-btn" id="cf-btn">Track Parcel</button>
+            </div>
+            <div class="tf-error" id="cf-error" role="alert" aria-live="assertive"></div>
+            <div class="cf-result" id="cf-result" hidden aria-live="polite"></div>
+          </form>
+        </div>
+        <script>
+        /* Carrier tracking helper: detects FedEx / DHL / K-Packet (Korea Post, UPU S10 ending in KR) from the number format, or from the carrier name saved on an order,
+           and opens the carrier's own tracking page (17TRACK as the universal fallback). Exposes window.nkCarrierLink(carrierName, number) for the order results card. */
+        (function(){
+          var CARRIERS = {
+            fedex:   { name:'FedEx',                url:function(n){ return 'https://www.fedex.com/fedextrack/?trknbr=' + encodeURIComponent(n); } },
+            dhl:     { name:'DHL Express',          url:function(n){ return 'https://www.dhl.com/global-en/home/tracking/tracking-express.html?submit=1&tracking-id=' + encodeURIComponent(n); } },
+            kpacket: { name:'K-Packet (Korea Post)', url:function(n){ return 'https://service.epost.go.kr/trace.RetrieveEmsRigiTraceList.comm?displayHeader=N&POST_CODE=' + encodeURIComponent(n); } }
+          };
+          function clean(v){ return String(v == null ? '' : v).toUpperCase().replace(/[\s-]+/g, ''); }
+          function detect(n){
+            if(/^[A-Z]{2}\d{9}KR$/.test(n)) return 'kpacket';                         /* UPU S10 issued by Korea Post */
+            if(/^(JD|JJD)\d{16,20}$/.test(n) || /^\d{10,11}$/.test(n)) return 'dhl';  /* DHL Express waybill (10-11 digits) / DHL eCommerce */
+            if(/^(\d{12}|\d{15}|\d{20}|\d{22})$/.test(n)) return 'fedex';           /* FedEx Express / Ground / SmartPost lengths */
+            return '';
+          }
+          function byName(s){
+            s = String(s || '').toLowerCase();
+            if(/fedex/.test(s)) return 'fedex';
+            if(/dhl/.test(s)) return 'dhl';
+            if(/k-?\s?packet|korea\s*post|epost|\bems\b/.test(s)) return 'kpacket';
+            return '';
+          }
+          function universal(n){ return 'https://www.17track.net/en/track?nums=' + encodeURIComponent(n); }
+          window.nkCarrierLink = function(name, num){ var n = clean(num), k = byName(name) || detect(n); return k ? CARRIERS[k].url(n) : universal(n); };
+
+          function el(tag, cls, txt){ var e = document.createElement(tag); if(cls) e.className = cls; if(txt != null) e.textContent = txt; return e; }
+          function link(href, label, cls){ var a = el('a', 'cf-link' + (cls ? ' ' + cls : ''), label); a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; return a; }
+
+          function run(raw){
+            var err = document.getElementById('cf-error'), out = document.getElementById('cf-result'), input = document.getElementById('cf-number');
+            var n = clean(raw);
+            err.textContent = ''; out.hidden = true; out.textContent = '';
+            if(!n){ err.textContent = 'Please paste the tracking number from your shipping email.'; input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
+            if(!/^[A-Z0-9]{8,30}$/.test(n)){ err.textContent = 'That doesn\u2019t look like a tracking number. Use letters and digits only (8\u201330 characters), with no symbols.'; input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
+            input.setAttribute('aria-invalid', 'false');
+            var k = detect(n), c = k ? CARRIERS[k] : null;
+            out.appendChild(el('span', 'cf-badge' + (c ? '' : ' unknown'), c ? c.name : 'Carrier not recognised'));
+            out.appendChild(el('p', 'cf-num', n));
+            var links = el('div', 'cf-links');
+            if(c) links.appendChild(link(c.url(n), 'Track on ' + c.name, 'primary'));
+            links.appendChild(link(universal(n), c ? 'Track on 17TRACK' : 'Track with 17TRACK', c ? '' : 'primary'));
+            out.appendChild(links);
+            out.appendChild(el('p', 'cf-note', c
+              ? 'Your parcel was dispatched from Busan, South Korea (Delivered Korea hub, Suite A03231). International express usually takes 5\u201310 business days; the first scan can take up to a day to appear.'
+              : 'We could not match this number to FedEx, DHL or K-Packet, but 17TRACK checks most carriers at once. If it still shows nothing, email nikora.support@gmail.com with your order number.'));
+            out.hidden = false;
+          }
+          var form = document.getElementById('carrier-form');
+          if(!form) return;
+          form.addEventListener('submit', function(e){ e.preventDefault(); run(document.getElementById('cf-number').value); });
+          document.getElementById('cf-number').addEventListener('input', function(){ this.setAttribute('aria-invalid', 'false'); document.getElementById('cf-error').textContent = ''; });
+          try{ var q = new URLSearchParams(location.search).get('tn'); if(q){ document.getElementById('cf-number').value = q.slice(0, 40); run(q); } }catch(e){}
+        })();
+        </script>
       </div>
     </div>
   </section>
@@ -824,7 +921,7 @@ h1.t-title em{font-style:italic; color:var(--gold);}
       <!-- processing notice -->
       <div class="glass-card notice-card" id="notice-card" hidden>
         <span class="notice-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg></span>
-        <div><h3>Order confirmed</h3><p>Order confirmed and being prepared at our fulfillment hub. Processing takes 1&ndash;3 business days (quality check, assembly and packaging), then your tracking number appears here and in your shipping email.</p></div>
+        <div><h3>Order confirmed</h3><p>Order confirmed. We are buying and inspecting your items at our Delivered Korea hub (Suite A03231, Busan, South Korea), which takes 2&ndash;4 business days. Then your parcel ships from Busan with FedEx, DHL or K-Packet (5&ndash;10 business days) and its tracking number appears here and in your shipping email.</p></div>
       </div>
 
       <!-- shipment details (shipped / delivered) -->
@@ -900,7 +997,7 @@ h1.t-title em{font-style:italic; color:var(--gold);}
           </div>
           <div class="glass-card faq-mini reveal">
             <h3 class="q"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 015 .9c0 1.7-2.5 2.2-2.5 3.8M12 17.2v.1"/></svg>How long does delivery take?</h3>
-            <p>Orders are processed in <b>1&ndash;3 business days</b>, then ship free in <b>5&ndash;12 business days</b> with real-time tracking. If your tracking is inactive for more than 14 days, or transit passes 30 days, we reship or refund you.</p>
+            <p>Orders are bought and inspected in South Korea in <b>2&ndash;4 business days</b>, then ship from Busan by FedEx, DHL or K-Packet in <b>5&ndash;10 business days</b> with real-time tracking. If your tracking is inactive for more than 14 days, or transit passes 30 days, we reship or refund you.</p>
           </div>
         </div>
       </div>
@@ -914,7 +1011,7 @@ h1.t-title em{font-style:italic; color:var(--gold);}
         <h2 id="cta-h2">Haven&rsquo;t Ordered Yet? Experience <em>Deep Skincare Technology</em> Today.</h2>
         <p>Red light, EMS microcurrents and warmth, in a five-minute daily ritual.</p>
         <a class="btn-primary" href="catalog.html">Shop Collection <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
-        <span class="cta-fine">Free Express Shipping &middot; 5&ndash;12 business days &middot; Real-time tracking</span>
+        <span class="cta-fine">Free Express Shipping &middot; 7&ndash;14 business days &middot; Real-time tracking</span>
       </div>
     </div>
   </section>
@@ -1807,9 +1904,9 @@ function tRender(o){
   if(delivered){ tSet('sum-eta', 'Delivered'); tSet('sum-eta-sub', o.deliveredAt ? tFmtFull(o.deliveredAt) : ''); }
   else if(o.eta){
     tSet('sum-eta', o.etaFrom ? tFmtDate(o.etaFrom) + ' \u2013 ' + tFmtDate(o.eta) : tFmtDate(o.eta));
-    tSet('sum-eta-sub', '8\u201318 business days from checkout');
+    tSet('sum-eta-sub', '7\u201314 business days from checkout');
   } else { tSet('sum-eta', '\u2014'); tSet('sum-eta-sub', ''); }
-  tSet('sum-carrier', shipped && o.carrier ? o.carrier : 'Assigned at dispatch');
+  tSet('sum-carrier', shipped && o.carrier ? o.carrier : 'FedEx / DHL / K-Packet, assigned at dispatch');
   tSet('sum-carrier-sub', shipped && o.trackingNumber ? 'Tracking ' + o.trackingNumber : 'Shown here once shipped');
   tSet('sum-placed', tFmtFull(o.placed));
   tSet('sum-ref', 'Free Express Shipping');
@@ -1822,7 +1919,7 @@ function tRender(o){
   if(hasTrack){
     tSet('ship-carrier', o.carrier || 'Carrier');
     tSet('ship-code', o.trackingNumber);
-    document.getElementById('ship-track').href = 'https://www.17track.net/en/track?nums=' + encodeURIComponent(o.trackingNumber);
+    document.getElementById('ship-track').href = (typeof window.nkCarrierLink === 'function') ? window.nkCarrierLink(o.carrier, o.trackingNumber) : 'https://www.17track.net/en/track?nums=' + encodeURIComponent(o.trackingNumber);
   }
 
   var whenAt = [o.placed, null, o.shippedAt, o.deliveredAt];
