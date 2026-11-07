@@ -62,7 +62,14 @@
     /* Desktop header bar */
     header: [
       { label: 'Home',        href: 'index.html' },
-      { label: 'Shop',        href: 'catalog.html' },
+      /* "All Shop": the label goes straight to the full catalog; on desktop hovering / focusing it opens the category dropdown, in the mobile drawer it becomes an accordion.
+         Edit the children here (label, desc, href). The ?category= values are resolved by catalog.html. */
+      { label: 'All Shop',    href: 'catalog.html', children: [
+        { label: 'LED Masks',            desc: 'Red-light therapy devices',  href: 'catalog.html?category=led-masks' },
+        { label: 'Microcurrent Devices', desc: 'Lifting and toning tools',   href: 'catalog.html?category=microcurrent' },
+        { label: 'Serums & Skincare',    desc: 'K-Beauty essentials',        href: 'catalog.html?category=serums-skincare' },
+        { label: 'Best Sellers',         desc: 'Most loved right now',       href: 'catalog.html?category=best-sellers' }
+      ] },
       { label: 'Science',     href: 'science.html' },
       { label: 'Reviews',     href: 'reviews.html' },
       { label: 'Track Order', href: 'track-order.html' },
@@ -141,6 +148,7 @@
     shield:  '<path d="M12 2l7 4v6c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-4z"/><path d="M9 12l2 2 4-4"/>',
     sparkle: '<path d="M12 3c.6 5 3 7.4 8 8-5 .6-7.4 3-8 8-.6-5-3-7.4-8-8 5-.6 7.4-3 8-8z"/><path d="M19 3v4M17 5h4"/>',
     arrow:   '<path d="M9 6l6 6-6 6"/>',
+    chev:    '<path d="M6 9l6 6 6-6"/>',
     close:   '<path d="M6 6l12 12M18 6L6 18"/>',
     burger:  '<path d="M4 6h16M4 12h16M4 18h16"/>',
     sun:     '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
@@ -163,7 +171,7 @@
   '  --nkn-border:var(--card-border,rgba(230,220,210,.6)); --nkn-panel:var(--surface-raised,rgba(255,255,255,.88));',
   '  --nkn-tint:var(--surface-tint,rgba(26,22,21,.04)); --nkn-rose:var(--rose,#D81E5B);',
   '  --nkn-float-bg:rgba(250,247,242,.72); --nkn-float-bg-scrolled:rgba(250,247,242,.88); --nkn-float-edge:rgba(26,22,21,.09);',
-  '  --nkn-float-shadow:0 14px 34px -22px rgba(26,22,21,.34); --nkn-float-shadow-scrolled:0 18px 40px -20px rgba(26,22,21,.46);',
+  '  --nkn-float-shadow:0 14px 34px -22px rgba(26,22,21,.34); --nkn-float-shadow-scrolled:0 18px 40px -20px rgba(26,22,21,.46); --nkn-sub-bg:#FCF9F4;',
   '}',
   ':root[data-theme="dark"] .nkn-header,:root[data-theme="dark"] .nkn-overlay,:root[data-theme="dark"] .nkn-drawer,:root[data-theme="dark"] .nkn-footer{',
   '  --nkn-text:var(--text,#F7F4F0); --nkn-soft:var(--text-soft,rgba(247,244,240,.64)); --nkn-faint:var(--text-faint,rgba(247,244,240,.4));',
@@ -173,7 +181,7 @@
   '  --nkn-border:var(--card-border,rgba(255,255,255,.08)); --nkn-panel:var(--surface-raised,rgba(30,25,38,.9));',
   '  --nkn-tint:var(--surface-tint,rgba(255,255,255,.05)); --nkn-rose:var(--rose,#FF527B);',
   '  --nkn-float-bg:rgba(11,11,14,.66); --nkn-float-bg-scrolled:rgba(11,11,14,.86); --nkn-float-edge:rgba(255,255,255,.09);',
-  '  --nkn-float-shadow:0 20px 44px -24px rgba(0,0,0,.85); --nkn-float-shadow-scrolled:0 24px 48px -20px rgba(0,0,0,.9);',
+  '  --nkn-float-shadow:0 20px 44px -24px rgba(0,0,0,.85); --nkn-float-shadow-scrolled:0 24px 48px -20px rgba(0,0,0,.9); --nkn-sub-bg:#14111A;',
   '}',
 
   /* ---- header bar (glass) ---- */
@@ -287,6 +295,37 @@
   '.nkn-drawer.active .nkn-d-sec{animation:nknIn .45s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 60ms + 120ms);}',
   '@keyframes nknIn{from{opacity:0;transform:translateX(-14px);}to{opacity:1;transform:none;}}',
 
+  /* ---- "All Shop" mega menu (desktop dropdown) ----
+     The panel sits inside .nkn-primary (so the liquid indicator code is untouched), is positioned by initMega() under the All Shop link and has a transparent
+     padding-top bridge, so the pointer can travel from the link to the card without the menu closing. Opaque card (the header already owns a backdrop blur). */
+  '.nkn-link .nkn-chev{width:12px;height:12px;margin-left:5px;flex:none;transition:transform .25s cubic-bezier(.2,.8,.2,1);}',
+  '.nkn-link[aria-expanded="true"] .nkn-chev{transform:rotate(180deg);}',
+  '.nkn-sub{position:absolute;top:100%;left:0;z-index:5;width:var(--nkn-sub-w,310px);padding-top:var(--nkn-sub-pt,26px);opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-6px);',
+  '  transition:opacity .22s ease,transform .26s cubic-bezier(.2,.8,.2,1),visibility 0s linear .26s;}',
+  '.nkn-sub.is-open{opacity:1;visibility:visible;pointer-events:auto;transform:none;transition-delay:0s;}',
+  '.nkn-sub-card{padding:8px;border-radius:18px;background:var(--nkn-sub-bg);border:1px solid rgba(var(--nkn-gold-rgb),.4);box-shadow:var(--nkn-float-shadow-scrolled);}',
+  '.nkn-sub-link{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border-radius:12px;text-decoration:none;color:var(--nkn-soft);transition:background .18s ease,color .18s ease,transform .18s ease;}',
+  '.nkn-sub-link:hover,.nkn-sub-link:focus-visible{background:rgba(var(--nkn-gold-rgb),.14);color:var(--nkn-text);transform:translateX(2px);}',
+  '.nkn-sub-link b{display:block;font-size:13.5px;font-weight:600;color:var(--nkn-text);letter-spacing:.01em;}',
+  '.nkn-sub-link small{display:block;margin-top:2px;font-size:11.5px;color:var(--nkn-faint);}',
+  '.nkn-sub-link svg{width:14px;height:14px;flex:none;color:var(--nkn-gold);opacity:0;transform:translateX(-4px);transition:opacity .18s ease,transform .18s ease;}',
+  '.nkn-sub-link:hover svg,.nkn-sub-link:focus-visible svg{opacity:1;transform:none;}',
+  '.nkn-sub-all{margin-bottom:6px;padding-bottom:12px;border-bottom:1px solid var(--nkn-line);border-radius:12px 12px 0 0;}',
+  '.nkn-sub-all b{color:var(--nkn-gold);}',
+
+  /* ---- "All Shop" accordion inside the mobile drawer (grid-template-rows 0fr -> 1fr: smooth height with no JS measuring) ---- */
+  '.nkn-d-acc-btn[aria-expanded="true"]{color:var(--nkn-text);}',
+  '.nkn-d-acc-btn svg,.nkn-d-acc-btn:hover svg{opacity:.8;transform:none;transition:transform .3s cubic-bezier(.2,.8,.2,1),opacity .18s ease;}',
+  '.nkn-d-acc-btn[aria-expanded="true"] svg,.nkn-d-acc-btn[aria-expanded="true"]:hover svg{transform:rotate(180deg);opacity:1;color:var(--nkn-gold);}',
+  '.nkn-acc{display:grid;grid-template-rows:0fr;transition:grid-template-rows .32s cubic-bezier(.2,.8,.2,1);}',
+  '.nkn-acc.is-open{grid-template-rows:1fr;}',
+  '.nkn-acc-in{min-height:0;overflow:hidden;visibility:hidden;opacity:0;margin-left:18px;padding-left:10px;border-left:1px solid rgba(var(--nkn-gold-rgb),.4);transition:opacity .25s ease,visibility 0s linear .32s;}',
+  '.nkn-acc.is-open .nkn-acc-in{visibility:visible;opacity:1;transition-delay:0s;}',
+  '.nkn-d-sublink{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:10px;text-decoration:none;font-size:14px;font-weight:500;color:var(--nkn-soft);transition:background .18s ease,color .18s ease;}',
+  '.nkn-d-sublink svg{width:14px;height:14px;flex:none;opacity:.4;}',
+  '.nkn-d-sublink:hover,.nkn-d-sublink:focus-visible{background:var(--nkn-tint);color:var(--nkn-text);}',
+  '.nkn-d-sublink.nkn-d-all{color:var(--nkn-gold);font-weight:600;}',
+
   /* ---- footer: frosted glass with an asymmetric multi-layer wave top edge + two ambient glow orbs ----
      Structure (see waveHtml()): .nkn-f-deco (decor, aria-hidden) = 2 glow orbs, glass strip clipped to the wave, glass body, SVG wave layers; .nkn-f-wrap = the content on top.
      Gold is the fixed brand #C89B54 (--nkn-f-gold); everything else comes from the variables below, so both themes need no hardcoded white. */
@@ -348,7 +387,7 @@
   '@media (max-width:360px){ .nkn-header .nkn-logo{--nkn-logo-h:36px;} }',
   '@media (max-width:340px){ .nkn-header .nkn-row{gap:8px;padding:0 14px;} .nkn-header .nkn-btn{width:36px;height:36px;} }',
   '@media (prefers-reduced-motion:reduce){',
-  '  .nkn-header,.nkn-drawer,.nkn-overlay,.nkn-ind,.nkn-f-link,.nkn-logo-svg,.nkn-wordmark{transition-duration:.001s !important;transition-delay:0s !important;}',
+  '  .nkn-header,.nkn-drawer,.nkn-overlay,.nkn-ind,.nkn-f-link,.nkn-logo-svg,.nkn-wordmark,.nkn-sub,.nkn-sub-link,.nkn-chev,.nkn-acc,.nkn-acc-in,.nkn-d-sublink,.nkn-d-acc-btn svg{transition-duration:.001s !important;transition-delay:0s !important;}',
   '  .nkn-drawer.active .nkn-d-sec{animation:none;}',
   '}'
   ].join('\n');
@@ -386,15 +425,25 @@
   }
 
   function buildHeader() {
-    var links = CONFIG.header.map(function (p) {
+    var subs = '';
+    var links = CONFIG.header.map(function (p, idx) {
       var st = state(p.href);
+      if (p.children && p.children.length) {                                   /* "All Shop": link + dropdown panel (the panel is appended after the links) */
+        var sid = 'nkn-sub-' + idx;
+        subs += '<div class="nkn-sub" id="' + sid + '" role="menu" aria-label="' + esc(p.label) + ' categories"><div class="nkn-sub-card">' +
+          '<a class="nkn-sub-link nkn-sub-all" role="menuitem" href="' + esc(p.href) + '"><span><b>Shop everything</b><small>The full NIKORA collection</small></span>' + ico('arrow') + '</a>' +
+          p.children.map(function (c) {
+            return '<a class="nkn-sub-link" role="menuitem" href="' + esc(c.href) + '"><span><b>' + esc(c.label) + '</b>' + (c.desc ? '<small>' + esc(c.desc) + '</small>' : '') + '</span>' + ico('arrow') + '</a>';
+          }).join('') + '</div></div>';
+        return '<a class="nkn-link nkn-has-sub' + activeClass(st) + '" href="' + esc(p.href) + '"' + activeAttrs(st) + ' data-nkn-sub="' + sid + '" aria-haspopup="true" aria-expanded="false" aria-controls="' + sid + '">' + esc(p.label) + ico('chev', 'nkn-chev') + '</a>';
+      }
       return '<a class="nkn-link' + activeClass(st) + '" href="' + esc(p.href) + '"' + activeAttrs(st) + '>' + esc(p.label) + '</a>';
     }).join('');
 
     return '<header class="nkn-header" id="nkn-header">' +
       '<div class="nkn-row">' +
         logoHtml(' id="nkn-logo"') +
-        '<nav class="nkn-primary" aria-label="Primary">' + links + '<span class=\"nkn-ind-track\" aria-hidden=\"true\"><span class=\"nkn-ind\"></span></span></nav>' +
+        '<nav class="nkn-primary" aria-label="Primary">' + links + subs + '<span class=\"nkn-ind-track\" aria-hidden=\"true\"><span class=\"nkn-ind\"></span></span></nav>' +
         '<div class="nkn-actions">' +
           themePill('') +
           '<button type="button" class="nkn-btn" id="nkn-search-btn" data-nk-search-open aria-label="Search products" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K">' + ico('search') + '</button>' +
@@ -403,6 +452,19 @@
         '</div>' +
       '</div>' +
     '</header>';
+  }
+
+  /* Mobile drawer: "All Shop" as an expandable accordion (tap the row to reveal / hide the categories; "Shop everything" opens the full catalog). */
+  function shopAccordion() {
+    var it = null;
+    CONFIG.header.forEach(function (p) { if (!it && p.children && p.children.length) it = p; });
+    if (!it) return '';
+    var st = state(it.href);
+    var items = '<a class="nkn-d-sublink nkn-d-all" href="' + esc(it.href) + '"><span>Shop everything</span>' + ico('arrow') + '</a>' +
+      it.children.map(function (c) { return '<a class="nkn-d-sublink" href="' + esc(c.href) + '"><span>' + esc(c.label) + '</span>' + ico('arrow') + '</a>'; }).join('');
+    return '<section class="nkn-d-sec nkn-d-shop" style="--i:0" aria-label="' + esc(it.label) + '">' +
+      '<button type="button" class="nkn-d-link nkn-d-acc-btn' + activeClass(st) + '" id="nkn-acc-btn" aria-expanded="false" aria-controls="nkn-acc-panel"><span>' + esc(it.label) + '</span>' + ico('chev') + '</button>' +
+      '<div class="nkn-acc" id="nkn-acc-panel" role="region" aria-labelledby="nkn-acc-btn"><div class="nkn-acc-in">' + items + '</div></div></section>';
   }
 
   function buildDrawer() {
@@ -423,7 +485,7 @@
         '<div class="nkn-d-head">' + logoHtml() +
           '<button type="button" class="nkn-d-close" id="close-mobile-menu" aria-label="Close menu">' + ico('close') + '</button>' +
         '</div>' +
-        '<nav class="nkn-d-body" aria-label="Site pages">' + secs + '</nav>' +
+        '<nav class="nkn-d-body" aria-label="Site pages">' + shopAccordion() + secs + '</nav>' +
         '<div class="nkn-d-foot"><span>Theme</span>' + themePill('-mobile') + '</div>' +
       '</aside>';
   }
@@ -889,6 +951,9 @@
     document.documentElement.classList.remove('nkn-menu-open');
     drawer.setAttribute('aria-hidden', 'true'); burger.setAttribute('aria-expanded', 'false');
     document.body.style.overflow = '';
+    var accP = $('nkn-acc-panel'), accB = $('nkn-acc-btn');                       /* collapse the All Shop accordion so the drawer opens clean next time */
+    if (accP) accP.classList.remove('is-open');
+    if (accB) accB.setAttribute('aria-expanded', 'false');
     if (skipFocus !== true && lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch (err) {} }
   }
   function trapFocus(e) {                           /* keep Tab inside the open drawer */
@@ -931,6 +996,45 @@
       var c = JSON.parse(localStorage.getItem('nikora_cart') || '[]');
       el.textContent = Array.isArray(c) ? c.reduce(function (n, i) { return n + (Number(i && i.qty) || 0); }, 0) : 0;
     } catch (e) {}
+  }
+
+  /* ---- "All Shop" desktop dropdown: opens on hover / keyboard focus, closes on leave (140 ms grace), Escape, resize or when the drawer opens ---- */
+  function initMega(nav) {
+    var link = nav.querySelector('.nkn-link[data-nkn-sub]');
+    var panel = link && document.getElementById(link.getAttribute('data-nkn-sub'));
+    if (!link || !panel) return;
+    var hdr = document.getElementById('nkn-header'), timer = 0, isOpen = false, mute = false;
+    var canHover = window.matchMedia ? window.matchMedia('(hover:hover)').matches : true;
+    function place() {
+      var n = nav.getBoundingClientRect(), h = hdr ? hdr.getBoundingClientRect() : n;
+      panel.style.setProperty('--nkn-sub-pt', Math.max(10, Math.round(h.bottom - n.bottom) + 6) + 'px');   /* transparent bridge from the link down to the card */
+      var w = panel.offsetWidth || 310, left = link.offsetLeft + link.offsetWidth / 2 - w / 2;
+      var vw = document.documentElement.clientWidth, abs = n.left + left;
+      if (abs < 12) left += 12 - abs; else if (abs + w > vw - 12) left -= abs + w - (vw - 12);
+      panel.style.left = Math.round(left) + 'px';
+    }
+    function open() { clearTimeout(timer); if (isOpen) return; place(); isOpen = true; panel.classList.add('is-open'); link.setAttribute('aria-expanded', 'true'); }
+    function close() { clearTimeout(timer); if (!isOpen) return; isOpen = false; panel.classList.remove('is-open'); link.setAttribute('aria-expanded', 'false'); }
+    function later() { clearTimeout(timer); timer = setTimeout(close, 140); }
+    if (canHover) {
+      link.addEventListener('mouseenter', open); panel.addEventListener('mouseenter', open);
+      link.addEventListener('mouseleave', later); panel.addEventListener('mouseleave', later);
+    }
+    link.addEventListener('focusin', function () { if (!mute) open(); });
+    nav.addEventListener('focusout', function (e) { if (!e.relatedTarget || !(link.contains(e.relatedTarget) || panel.contains(e.relatedTarget))) later(); });
+    link.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); open(); var f = panel.querySelector('a'); if (f) f.focus(); }
+    });
+    panel.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      e.preventDefault();
+      var items = Array.prototype.slice.call(panel.querySelectorAll('a')), i = items.indexOf(document.activeElement);
+      items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && isOpen) { mute = true; close(); link.focus(); mute = false; } });
+    panel.addEventListener('click', close);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, { passive: true });
   }
 
   function wire() {
@@ -986,6 +1090,12 @@
 
     var pNav = document.querySelector('#nkn-header .nkn-primary'), pInd = pNav && pNav.querySelector('.nkn-ind');
     if (pNav && pInd) indicatorApi = initIndicator(pNav, pInd);
+    if (pNav) initMega(pNav);
+    var accBtn = $('nkn-acc-btn'), accPanel = $('nkn-acc-panel');                /* mobile drawer: All Shop accordion */
+    if (accBtn && accPanel) accBtn.addEventListener('click', function () {
+      var on = accPanel.classList.toggle('is-open');
+      accBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+    });
   }
 
   /* ======================================================================
