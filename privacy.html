@@ -14,6 +14,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="view-transitions.js"></script>
 <title>Privacy Policy — NIKORA</title>
 <meta name="description" content="NIKORA Privacy Policy: what personal data we collect, how Firebase and our partners process it, cookies, and your GDPR and CCPA/CPRA rights. Questions? nikora.support@gmail.com">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -65,7 +66,7 @@ html{scroll-behavior:smooth;}
 body {
   background: linear-gradient(-45deg, #FAF7F2, #F8F4F0, #F5EFE6, #FAF7F2);
   background-size: 400% 400%;
-  animation: gradientShift 12s ease infinite;
+  background-position: 0% 50%;
   margin:0;
   color:var(--text);
   font-family:'Montserrat',sans-serif;
@@ -77,12 +78,19 @@ body {
 [data-theme="dark"] body {
   background: linear-gradient(-45deg, #0D0B12, #170E1B, #2A0F1D, #0D0B12);
   background-size: 400% 400%;
-  animation: gradientShift 12s ease infinite;
+  background-position: 0% 50%;
 }
 @keyframes gradientShift {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
+}
+/* gradientShift runs on DESKTOP only (>= 769px) and only without a reduced-motion preference; phones and tablets keep the gradient static for smooth 60 FPS scrolling. */
+@media (min-width:769px) and (prefers-reduced-motion:no-preference){
+  body, [data-theme="dark"] body{animation:gradientShift 12s ease infinite;}
+}
+@media (max-width:768px){
+  body, [data-theme="dark"] body{animation:none !important; background-position:0% 50%;}
 }
 @media (prefers-reduced-motion: reduce){
   body{animation:none;}
@@ -717,7 +725,7 @@ h1.f-title em{font-style:italic; color:var(--gold);}
     <p class="pv-lede">NIKORA respects your privacy. This policy explains what personal data we collect, why we collect it, who we share it with, and the choices you have.</p>
     <div class="pv-sub"><h3>Information We Collect</h3><p>When you place an order, track a parcel, start a return, write a review or contact us, we collect the personal data needed to help you:</p><ul><li><strong>Identity and contact details:</strong> your name, email address and phone number (if you provide one).</li><li><strong>Delivery details:</strong> your shipping address and order number.</li><li><strong>Support and returns:</strong> the messages, return reasons and photos you choose to send us.</li><li><strong>Reviews:</strong> your display name, rating, review text and optional photo, which are published on our site.</li><li><strong>Cart contents:</strong> saved in your browser and kept in sync under a random cart ID that is not linked to your name.</li></ul><p>Your order and support data is processed securely through <strong>Firebase</strong>, Google&rsquo;s cloud database platform, so that we can fulfil your order.</p></div>
     <div class="pv-sub"><h3>How We Use Your Data</h3><ul><li>Processing, packing and delivering your orders.</li><li>Sending order confirmations and tracking updates.</li><li>Providing customer support at <a href="mailto:nikora.support@gmail.com">nikora.support@gmail.com</a>.</li><li>Handling returns, refunds and loss/damage claims.</li><li>Keeping our website secure and meeting our legal obligations.</li></ul><p>We do <strong>not</strong> sell your personal information.</p></div>
-    <div class="pv-sub"><h3>Third-Party Services</h3><p>We share only what is necessary with trusted providers who help us run the store:</p><ul><li><strong>Secure payment gateways</strong> process your payment at checkout. Card details are entered only on the checkout page. NIKORA never asks for card numbers by email, chat or contact form.</li><li><strong>Carrier logistics partners</strong> receive your name, delivery address and contact details so they can deliver your parcel and provide tracking.</li><li><strong>Firebase (Google)</strong> provides the secure database infrastructure for orders, returns, reviews and support messages, and data travels over encrypted connections.</li></ul></div>
+    <div class="pv-sub"><h3>Third-Party Services</h3><p>We share only what is necessary with trusted providers who help us run the store:</p><ul><li><strong>Secure payment gateways</strong> process your payment at checkout. Card details are entered only on the checkout page. NIKORA never asks for card numbers by email, chat or contact form.</li><li><strong>Delivered Korea (our logistics partner, Suite A03231, Busan, South Korea)</strong> receives your name, delivery address, phone number and order contents so it can inspect, pack and dispatch your order.</li><li><strong>Carriers (FedEx, DHL, K-Packet)</strong> receive your name, delivery address and contact details so they can deliver your parcel, provide tracking and complete customs clearance. Customs authorities may also see the parcel&rsquo;s contents and value.</li><li><strong>International data transfers:</strong> because your order is bought and shipped from South Korea, this delivery data is transferred from your country to South Korea and to the carrier&rsquo;s network, and is used only to fulfil your order.</li><li><strong>Firebase (Google)</strong> provides the secure database infrastructure for orders, returns, reviews and support messages, and data travels over encrypted connections.</li></ul></div>
     <div class="pv-sub"><h3>Your GDPR / CCPA Rights</h3><p>Depending on where you live, including under the EU/UK GDPR and the California CCPA/CPRA, you have the right to:</p><ul><li><strong>Access</strong> the personal data we hold about you.</li><li><strong>Correct</strong> information that is inaccurate or incomplete.</li><li><strong>Delete</strong> your personal data, subject to records we must keep by law.</li><li><strong>Receive a copy</strong> of your data in a portable format, and object to or restrict certain processing.</li></ul><p>To make a request, email <a href="mailto:nikora.support@gmail.com">nikora.support@gmail.com</a> from the address you used with us and include your order number if you have one. We may verify your identity first and will respond within the time required by applicable law. We will never treat you differently for exercising your rights.</p><p>Our website is intended for adults and is not directed to children under 16.</p></div>
   </article>
 </section>
