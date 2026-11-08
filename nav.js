@@ -24,7 +24,9 @@
  *
  * SITE CONTENT: the announcement bar (above the header) and the promo banner (under it) are
  * managed from the admin site and read from Firebase /site_content (announcement_enabled,
- * announcement_text, promo_banner_enabled, promo_banner_image_url, promo_banner_link).
+ * announcement_text, announcement_mode ('marquee' = scrolling ticker, otherwise static), announcement_speed (slow|normal|fast),
+ * announcement_bg / announcement_color (hex), announcement_link, announcement_start / announcement_end (ISO date-time, UTC: the bar
+ * appears and disappears by itself), promo_banner_enabled, promo_banner_image_url, promo_banner_link).
  * Nothing is shown until the admin turns them on. Needs public read on /site_content.
  *
  * SITE CONTENT STORE: nav.js keeps one live copy of /site_content for the page (server-sent stream, no SDK needed)
@@ -55,6 +57,7 @@
     tagline: 'Smart care. Instant glow. Beauty tech designed around the routine you actually have time for.',
     hours: 'Concierge support: Mon\u2013Sun, 8am\u201310pm EST',
     shipNote: 'Free Express Shipping on every order',
+    consent: true,                                    // privacy & cookie consent banner (consent.js); false = no banner and no analytics
 
     /* Health & cosmetic-device disclaimer shown in the footer on every page (payment gateways and regulators expect it) */
     disclaimer: 'NIKORA devices are cosmetic tools intended for personal home skincare and are not medical devices. They are not intended to diagnose, treat, cure, or prevent any medical condition or disease.',
@@ -97,6 +100,7 @@
       { title: 'Legal & Concierge', icon: 'shield', links: [
         { label: 'Privacy Policy',          href: 'privacy.html' },
         { label: 'Terms of Service',        href: 'terms.html' },
+        { label: 'Cookie Settings',         href: '#cookie-settings' },
         { label: 'Shipping Policy',         href: 'shipping.html' },
         { label: 'Refund & Return Policy',  href: 'returns.html#return-policy' },
         { label: 'AI Beauty Concierge',     action: 'ai', icon: 'sparkle' },
@@ -108,6 +112,7 @@
     legal: [
       { label: 'Privacy Policy',         href: 'privacy.html' },
       { label: 'Terms of Service',       href: 'terms.html' },
+      { label: 'Cookie Settings',        href: '#cookie-settings' },
       { label: 'Shipping Policy',        href: 'shipping.html' },
       { label: 'Refund & Return Policy', href: 'returns.html#return-policy' },
       { label: '30-Day Guarantee',       href: 'guarantee.html' },
@@ -184,6 +189,18 @@
   '  --nkn-float-shadow:0 20px 44px -24px rgba(0,0,0,.85); --nkn-float-shadow-scrolled:0 24px 48px -20px rgba(0,0,0,.9); --nkn-sub-bg:#14111A;',
   '}',
 
+  /* ---- NIKORA custom scrollbar (every page: cart drawer, filters, menus, lists) ----
+     Slim gold thumb on a transparent track. scrollbar-width / scrollbar-color are the standard properties (Chrome 121+, Firefox); the ::-webkit-scrollbar rules
+     cover Safari and older Chromium. !important so page-level rules (e.g. the cart recommendations strip) cannot bring the default bar back. */
+  ':root,:root *{scrollbar-width:thin !important;scrollbar-color:rgba(200,155,84,.78) rgba(11,11,14,.05) !important;}',
+  ':root[data-theme="dark"],:root[data-theme="dark"] *{scrollbar-color:rgba(200,155,84,.72) rgba(255,255,255,.05) !important;}',
+  ':root ::-webkit-scrollbar,:root *::-webkit-scrollbar{width:6px !important;height:6px !important;background:transparent !important;}',
+  ':root ::-webkit-scrollbar-track,:root *::-webkit-scrollbar-track{background:rgba(11,11,14,.05) !important;border-radius:100px;}',
+  ':root[data-theme="dark"] ::-webkit-scrollbar-track,:root[data-theme="dark"] *::-webkit-scrollbar-track{background:rgba(255,255,255,.05) !important;}',
+  ':root ::-webkit-scrollbar-thumb,:root *::-webkit-scrollbar-thumb{background:linear-gradient(180deg,rgba(214,176,112,.75),rgba(200,155,84,.55)) !important;border-radius:100px !important;border:2px solid transparent !important;background-clip:padding-box !important;}',
+  ':root ::-webkit-scrollbar-thumb:hover,:root *::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg,#E3C078,#C89B54) !important;background-clip:padding-box !important;}',
+  ':root ::-webkit-scrollbar-corner,:root *::-webkit-scrollbar-corner{background:transparent !important;}',
+
   /* ---- header bar (glass) ---- */
   /* Floating curved header: docks to the top edge, floats clear of the side edges, soft 20px bottom corners, frosted glass,
      faint neutral hairline edge (no gold bar anywhere on the header: gold is reserved for the logo, the theme pill and the nav indicator). Every colour is a theme variable (see --nkn-float-* above). */
@@ -224,6 +241,22 @@
   '.nkn-announce{position:relative;z-index:401;background:#0B0B0E;color:#F3EEE6;border-bottom:1px solid rgba(200,155,84,.45);font-family:inherit;}',
   '.nkn-announce[hidden],.nkn-promo[hidden]{display:none;}',
   '.nkn-announce-text{margin:0;padding:9px clamp(16px,4vw,48px);text-align:center;font-size:12.5px;font-weight:500;letter-spacing:.04em;line-height:1.45;}',
+  '.nkn-announce a{color:inherit;text-decoration:none;}',
+  '.nkn-announce a:hover{text-decoration:underline;text-underline-offset:3px;}',
+  '.nkn-announce a:focus-visible,.nkn-marq-btn:focus-visible{outline:2px solid #C89B54;outline-offset:2px;}',
+  '.nkn-announce-marq{display:flex;align-items:center;}',
+  '.nkn-marq{flex:1 1 auto;min-width:0;overflow:hidden;white-space:nowrap;-webkit-mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent);mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent);}',
+  '.nkn-marq-track{display:flex;width:max-content;animation:nknMarq var(--nkn-marq-dur,30s) linear infinite;will-change:transform;}',
+  '.nkn-marq-group{display:flex;flex:none;}',
+  '.nkn-marq-item{flex:none;padding:9px 0;font-size:12.5px;font-weight:500;letter-spacing:.04em;line-height:1.45;}',
+  '.nkn-marq-item::after{content:"\\2726";margin:0 clamp(24px,4vw,56px);color:#C89B54;opacity:.8;}',
+  '.nkn-announce:hover .nkn-marq-track,.nkn-announce:focus-within .nkn-marq-track,.nkn-announce.is-paused .nkn-marq-track{animation-play-state:paused;}',
+  '.nkn-marq-btn{flex:none;width:26px;height:26px;margin:0 10px 0 4px;padding:0;display:inline-flex;align-items:center;justify-content:center;gap:3px;border-radius:50%;cursor:pointer;color:inherit;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);}',
+  '.nkn-marq-btn i{display:block;width:3px;height:10px;border-radius:1px;background:currentColor;}',
+  '.nkn-announce.is-paused .nkn-marq-btn i:first-child{width:0;height:0;border-radius:0;background:none;border-left:8px solid currentColor;border-top:5px solid transparent;border-bottom:5px solid transparent;}',
+  '.nkn-announce.is-paused .nkn-marq-btn i:last-child{display:none;}',
+  '@keyframes nknMarq{from{transform:translateX(0);}to{transform:translateX(-50%);}}',
+  '@media (prefers-reduced-motion:reduce){.nkn-marq-track{animation:none;width:auto;}.nkn-marq-group+.nkn-marq-group,.nkn-marq-btn{display:none;}.nkn-marq{white-space:normal;text-align:center;-webkit-mask-image:none;mask-image:none;}.nkn-marq-item{padding:9px clamp(16px,4vw,48px);}.nkn-marq-item::after{display:none;}.nkn-marq-item+.nkn-marq-item{display:none;}}',
   '.nkn-promo{position:relative;z-index:1;background:#0B0B0E;font-family:inherit;}',
   '.nkn-promo a,.nkn-promo img{display:block;width:100%;}',
   '.nkn-promo img{height:auto;max-height:clamp(72px,16vw,190px);object-fit:cover;}',
@@ -643,19 +676,80 @@
   function promoDismissed(img) { try { return sessionStorage.getItem(SITE.dismissKey) === img; } catch (e) { return false; } }
   SITE_DATA = (function () { var c = siteCacheGet(); return (c && typeof c === 'object') ? c : {}; })();
 
-  function sitePick(c) {                              // raw /site_content -> what the bar and banner show ({ ann, img, link })
+  function hexColor(v) { v = (typeof v === 'string') ? v.trim() : ''; return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v) ? v : ''; }
+  function annTime(v) {                               // ISO string or ms -> ms (0 = not set / unreadable)
+    if (typeof v === 'number' && isFinite(v)) return v;
+    if (typeof v === 'string' && v.trim()) { var t = Date.parse(v.trim()); return isNaN(t) ? 0 : t; }
+    return 0;
+  }
+  function annScheduled(c, now) {                     // false before announcement_start and after announcement_end
+    var a = annTime(c.announcement_start), b = annTime(c.announcement_end);
+    if (a && now < a) return false;
+    if (b && now > b) return false;
+    return true;
+  }
+  var ANN_SPEED = { slow: 35, normal: 60, fast: 100 };      // marquee speed in pixels per second
+  function sitePick(c) {                              // raw /site_content -> what the bar and banner show ({ ann, annOpt, img, link })
     c = c || {};
-    var text = (typeof c.announcement_text === 'string') ? c.announcement_text.trim().slice(0, 160) : '';
+    var text = (typeof c.announcement_text === 'string') ? c.announcement_text.trim().slice(0, 300) : '';
+    var live = c.announcement_enabled !== false && !!text && annScheduled(c, Date.now());
     return {
-      ann:  (c.announcement_enabled !== false && text) ? text : '',
+      ann:  live ? text : '',
+      annOpt: {
+        marquee: c.announcement_mode === 'marquee',
+        bg: hexColor(c.announcement_bg), color: hexColor(c.announcement_color), link: safeLink(c.announcement_link),
+        speed: ANN_SPEED[c.announcement_speed] ? c.announcement_speed : 'normal'
+      },
       img:  (c.promo_banner_enabled !== false) ? safeImg(c.promo_banner_image_url) : '',
       link: safeLink(c.promo_banner_link)
     };
   }
 
+  function annSig(sc) { return JSON.stringify([sc.ann, sc.annOpt]); }
+  function annItemHtml(sc, tab) {
+    var t = esc(sc.ann), l = sc.annOpt.link;
+    return l ? '<a href="' + esc(l) + '"' + (/^https:/i.test(l) ? ' target="_blank" rel="noopener"' : '') + (tab === false ? ' tabindex="-1"' : '') + '>' + t + '</a>' : t;
+  }
+  function annInnerHtml(sc) {                         // static text, or a scrolling ticker (two identical groups = seamless loop)
+    if (!sc.ann || !sc.annOpt.marquee) return '<p class="nkn-announce-text" id="nkn-announce-text">' + (sc.ann ? annItemHtml(sc) : '') + '</p>';
+    return '<div class="nkn-marq" id="nkn-marq"><div class="nkn-marq-track" id="nkn-marq-track">' +
+      '<div class="nkn-marq-group"><span class="nkn-marq-item">' + annItemHtml(sc) + '</span></div>' +
+      '<div class="nkn-marq-group" aria-hidden="true"><span class="nkn-marq-item">' + annItemHtml(sc, false) + '</span></div></div></div>' +
+      '<button type="button" class="nkn-marq-btn" id="nkn-marq-btn" aria-label="Pause scrolling announcement" aria-pressed="false"><i></i><i></i></button>';
+  }
+  function annStyle(sc) { return (sc.annOpt.bg ? 'background:' + sc.annOpt.bg + ';' : '') + (sc.annOpt.color ? 'color:' + sc.annOpt.color + ';' : ''); }
   function announceHtml(sc) {
-    return '<div class="nkn-announce" id="nkn-announce" role="region" aria-label="Announcement"' + (sc.ann ? '' : ' hidden') + '>' +
-      '<p class="nkn-announce-text" id="nkn-announce-text">' + esc(sc.ann) + '</p></div>';
+    var marq = !!(sc.ann && sc.annOpt.marquee), st = annStyle(sc);
+    return '<div class="nkn-announce' + (marq ? ' nkn-announce-marq' : '') + '" id="nkn-announce" role="region" aria-label="Announcement" data-sig="' + esc(annSig(sc)) + '"' +
+      (st ? ' style="' + esc(st) + '"' : '') + (sc.ann ? '' : ' hidden') + '>' + annInnerHtml(sc) + '</div>';
+  }
+  function fitMarquee() {                             // repeat the message until one group is wider than the bar, then derive the loop time from the speed
+    var a = $('nkn-announce'), tr = $('nkn-marq-track'); if (!a || a.hidden || !tr || tr.children.length < 2) return;
+    var g1 = tr.children[0], g2 = tr.children[1], first = g1.firstElementChild; if (!first) return;
+    var proto = first.cloneNode(true), w1 = first.getBoundingClientRect().width, bar = a.clientWidth; if (!w1 || !bar) return;
+    var n = Math.max(1, Math.ceil(bar / w1)), sc = SITE_LAST_PICK, sp = ANN_SPEED[(sc && sc.annOpt.speed) || 'normal'];
+    [g1, g2].forEach(function (g, gi) {
+      g.innerHTML = '';
+      for (var i = 0; i < n; i++) {
+        var c = proto.cloneNode(true);
+        if (gi || i) { c.setAttribute('aria-hidden', 'true'); Array.prototype.forEach.call(c.querySelectorAll('a'), function (l) { l.tabIndex = -1; }); }
+        g.appendChild(c);
+      }
+    });
+    var gw = g1.getBoundingClientRect().width;
+    tr.style.setProperty('--nkn-marq-dur', Math.max(8, gw / sp).toFixed(1) + 's');
+  }
+  var SITE_LAST_PICK = null, marqBound = false;
+  function bindMarq() {
+    var a = $('nkn-announce'); if (!a || marqBound) return; marqBound = true;
+    a.addEventListener('click', function (e) {
+      var b = e.target.closest && e.target.closest('#nkn-marq-btn'); if (!b) return;
+      var on = a.classList.toggle('is-paused'); b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.setAttribute('aria-label', on ? 'Resume scrolling announcement' : 'Pause scrolling announcement');
+    });
+    var rt; window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(fitMarquee, 150); });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitMarquee);
+    window.addEventListener('load', fitMarquee);
   }
   function promoMedia(sc) {
     var img = '<img src="' + esc(sc.img) + '" alt="Promotion" decoding="async">';
@@ -673,8 +767,18 @@
     if (im) im.onerror = function () { p.hidden = true; };
   }
   function applySite(sc) {
-    var a = $('nkn-announce'), at = $('nkn-announce-text'), p = $('nkn-promo'), pm = $('nkn-promo-media');
-    if (a && at) { at.textContent = sc.ann; a.hidden = !sc.ann; }
+    var a = $('nkn-announce'), p = $('nkn-promo'), pm = $('nkn-promo-media');
+    SITE_LAST_PICK = sc;
+    if (a) {
+      var sig = annSig(sc), marq = !!(sc.ann && sc.annOpt.marquee);
+      if (a.getAttribute('data-sig') !== sig) {                  // only rebuild when something changed, so the ticker never restarts for no reason
+        a.setAttribute('data-sig', sig); a.innerHTML = annInnerHtml(sc); a.classList.remove('is-paused');
+      }
+      a.style.background = sc.annOpt.bg || ''; a.style.color = sc.annOpt.color || '';
+      a.classList.toggle('nkn-announce-marq', marq);
+      a.hidden = !sc.ann;
+      if (marq) { bindMarq(); fitMarquee(); }
+    }
     if (p && pm) {
       var show = !!sc.img && !promoDismissed(sc.img), key = sc.img + '|' + sc.link;
       if (show) {
@@ -778,7 +882,12 @@
     es.addEventListener('auth_revoked', fallback);
     es.onerror = function () { if (!got) fallback(); };   // never connected (blocked, offline, rules) -> plain reads instead
   }
-  function startSite() { openStream(); }
+  function startSite() {
+    openStream();
+    setInterval(function () { applySite(sitePick(SITE_DATA)); }, 30000);   // the bar switches on/off by itself when announcement_start / announcement_end pass
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { if (SITE_LAST_PICK && SITE_LAST_PICK.annOpt.marquee) { bindMarq(); fitMarquee(); } });
+    else if (SITE_LAST_PICK && SITE_LAST_PICK.annOpt.marquee) { bindMarq(); fitMarquee(); }
+  }
 
   window.NikoraSite = {                               // pages subscribe here: NikoraSite.onChange(function (content) { ... })
     get: function () { return SITE_DATA; },
@@ -792,6 +901,7 @@
     util: { toList: toList, answerHtml: answerHtml, inlineHtml: inlineHtml, rich: richText, safeLink: safeLink, safeImg: safeImg, email: siteEmail, phone: sitePhone, esc: esc }
   };
   var SC0 = sitePick(siteCacheGet());                 // first paint from the last known state, so nothing jumps in later
+  SITE_LAST_PICK = SC0;
 
   var HTML = LOGO_SPRITE + announceHtml(SC0) + buildHeader() + promoHtml(SC0) + buildDrawer();
   var mounted = false;
@@ -821,6 +931,7 @@
     else { document.body.insertAdjacentHTML('afterbegin', HTML); }
     wire();
     loadAnimations();
+    loadConsent();
     loadMascot();
     loadTextFx();
     searchConfig();
@@ -873,6 +984,14 @@
     var base = SELF_SRC ? SELF_SRC.replace(/[^\\/?#]*([?#].*)?$/, '') : '';
     var el = document.createElement('script');
     el.id = 'nk-anim-loader'; el.async = true; el.src = base + 'animations.js';
+    (document.head || document.documentElement).appendChild(el);
+  }
+  /* privacy & cookie consent banner + consent-gated Google Analytics 4: consent.js, same folder as nav.js */
+  function loadConsent() {
+    if (CONFIG.consent === false || window.NikoraConsent || document.getElementById('nk-consent-loader') || document.querySelector('script[src*="consent.js"]')) return;
+    var base = SELF_SRC ? SELF_SRC.replace(/[^\\/?#]*([?#].*)?$/, '') : '';
+    var el = document.createElement('script');
+    el.id = 'nk-consent-loader'; el.async = true; el.src = base + 'consent.js';
     (document.head || document.documentElement).appendChild(el);
   }
   /* the NIKORA Rabbit UI guide (tips, empty states): stand-alone file in the same folder as nav.js */
