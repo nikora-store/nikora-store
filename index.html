@@ -12,6 +12,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="view-transitions.js"></script>
 <title>NIKORA — Smart Care. Instant Glow.</title>
 <meta name="description" content="NIKORA: high-performance skincare tech. Red Light &amp; EMS Facial Wand, scalp renewal, eye lift devices, and glow bundles.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -63,7 +64,7 @@ html{scroll-behavior:smooth;}
 body {
   background: linear-gradient(-45deg, #FAF7F2, #F8F4F0, #F5EFE6, #FAF7F2);
   background-size: 400% 400%;
-  animation: gradientShift 12s ease infinite;
+  background-position: 0% 50%;
   margin:0;
   color:var(--text);
   font-family:'Montserrat',sans-serif;
@@ -75,12 +76,19 @@ body {
 [data-theme="dark"] body {
   background: linear-gradient(-45deg, #0D0B12, #170E1B, #2A0F1D, #0D0B12);
   background-size: 400% 400%;
-  animation: gradientShift 12s ease infinite;
+  background-position: 0% 50%;
 }
 @keyframes gradientShift {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
+}
+/* gradientShift runs on DESKTOP only (>= 769px) and only without a reduced-motion preference; phones and tablets keep the gradient static for smooth 60 FPS scrolling. */
+@media (min-width:769px) and (prefers-reduced-motion:no-preference){
+  body, [data-theme="dark"] body{animation:gradientShift 12s ease infinite;}
+}
+@media (max-width:768px){
+  body, [data-theme="dark"] body{animation:none !important; background-position:0% 50%;}
 }
 @media (prefers-reduced-motion: reduce){
   body{animation:none;}
@@ -720,10 +728,38 @@ footer.site{border-top:1px solid var(--line); padding:60px 0 30px; margin-top:20
 }
 @media(prefers-reduced-motion:reduce){.nk-hs-track{transition:none}.nk-hs-btn:hover{transform:none}}
 </style>
-<script src="shipping-rules.js"></script>
+<style id="nk-hero-layer-fix">
+/* ===== Hero layering fix =====
+   One explicit stacking scale, so the overlay text (title, subtext, ratings, buttons) always sits above every image,
+   gradient and glass layer, in both the static hero and the Firebase banner slider:
+     0 background image / glow   1 dark readability overlay   2-3 text and buttons   5 slider arrows and dots            */
+.hero{isolation:isolate}
+.hero::before{z-index:0}
+.hero-inner{position:relative;z-index:2}
+.hero-visual{position:relative;z-index:1}
+.hero-visual .product-card-img,.hero-visual .product-img-placeholder{z-index:0}
+.hero-specs{z-index:2}
+.hero-copy{position:relative;z-index:3}
+.hero-badge,.hero-title,.hero-sub,.hero-proof{position:relative;z-index:1}
+.hero-ctas{position:relative;z-index:2}
+
+.nk-hs-frame{isolation:isolate}
+.nk-hs-viewport{z-index:0}
+.nk-hs-img{z-index:0}
+.nk-hs-slide::after{z-index:1;pointer-events:none}
+.nk-hs-copy{z-index:3;background:rgba(11,11,14,.55)}
+.nk-hs-title{color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.5)}
+.nk-hs-sub{color:rgba(247,244,240,.92);text-shadow:0 1px 12px rgba(0,0,0,.45)}
+.nk-hs-btn{position:relative;z-index:1}
+.nk-hs-arrow,.nk-hs-dots{z-index:5}
+@media(max-width:640px){
+  .nk-hs-copy{bottom:58px;max-height:calc(100% - 78px);overflow:auto}   /* never taller than the frame, never under the dots */
+}
+</style>
+<script src="shipping-rules.js?v=20261108"></script>
 </head>
 <body>
-<script src="nav.js"></script>
+<script src="nav.js?v=20261108"></script>
 
 
 
