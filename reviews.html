@@ -14,6 +14,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="view-transitions.js"></script>
 <title>Customer Reviews — NIKORA</title>
 <meta name="description" content="Read real customer experiences with NIKORA beauty devices, or share your own review with photos.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -65,7 +66,7 @@ html{scroll-behavior:smooth;}
 body {
   background: linear-gradient(-45deg, #FAF7F2, #F8F4F0, #F5EFE6, #FAF7F2);
   background-size: 400% 400%;
-  animation: gradientShift 12s ease infinite;
+  background-position: 0% 50%;
   margin:0;
   color:var(--text);
   font-family:'Montserrat',sans-serif;
@@ -77,12 +78,19 @@ body {
 [data-theme="dark"] body {
   background: linear-gradient(-45deg, #0D0B12, #170E1B, #2A0F1D, #0D0B12);
   background-size: 400% 400%;
-  animation: gradientShift 12s ease infinite;
+  background-position: 0% 50%;
 }
 @keyframes gradientShift {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
+}
+/* gradientShift runs on DESKTOP only (>= 769px) and only without a reduced-motion preference; phones and tablets keep the gradient static for smooth 60 FPS scrolling. */
+@media (min-width:769px) and (prefers-reduced-motion:no-preference){
+  body, [data-theme="dark"] body{animation:gradientShift 12s ease infinite;}
+}
+@media (max-width:768px){
+  body, [data-theme="dark"] body{animation:none !important; background-position:0% 50%;}
 }
 @media (prefers-reduced-motion: reduce){
   body{animation:none;}
@@ -616,7 +624,7 @@ h1.rv-title em{font-style:italic; color:var(--gold);}
       <div class="rv-toolbar">
         <div class="rv-chips" role="group" aria-label="Filter reviews">
           <button type="button" class="rv-chip" data-filter="all" aria-pressed="true">All Reviews</button>
-          <button type="button" class="rv-chip" data-filter="photos" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>With Photos</button>
+          <button type="button" class="rv-chip" data-filter="photos" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>With Photos &amp; Video</button>
           <button type="button" class="rv-chip" data-filter="verified" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l7 4v6c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-4z"/><path d="M9 12l2 2 4-4"/></svg>Verified Buyers</button>
         </div>
         <label class="rv-sort" for="rv-sort">Sort by
@@ -695,16 +703,7 @@ h1.rv-title em{font-style:italic; color:var(--gold);}
       <input type="text" class="rf-hp" id="rf-website" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
 
       <div class="field">
-        <label>Profile Photo <span class="opt">(optional)</span></label>
-        <div class="rf-avatar-row">
-          <div class="rf-avatar" id="rf-avatar-box"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg><img id="rf-avatar-img" alt="Your profile photo preview"></div>
-          <div class="rf-btns">
-            <label class="rf-pick" for="rf-avatar-file"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>Upload photo</label>
-            <input type="file" id="rf-avatar-file" accept="image/*" hidden>
-            <button type="button" class="rf-remove" id="rf-avatar-remove"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>Remove</button>
-          </div>
-        </div>
-        <p class="rf-note" style="margin:10px 0 0;">A real photo builds trust. Without one, we show your initials.</p>
+        <div id="rf-media"></div>
       </div>
 
       <div class="field">
@@ -1448,7 +1447,7 @@ var RV_PAGE_SIZE = 9;
 var RV_FILTER = 'all', RV_SORT = 'recent';
 var RV_RATE_TEXT = ['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'];
 var RV_STAR_PATH = 'M12 2l2.9 6.6L22 9.3l-5 5 1.2 7.1L12 18l-6.2 3.4L7 14.3l-5-5 7.1-.7z';
-var RV_FORM = { rating: 0, avatar: '', busy: 0, lastFocus: null };
+var RV_FORM = { rating: 0, media: null, sending: false, lastFocus: null };
 
 function rvHasStore(){ return !!(window.NikoraReviews && typeof NikoraReviews.renderAllReviews === 'function'); }
 function rvStarSvg(on){
@@ -1529,25 +1528,6 @@ function rvInitControls(){
 }
 
 /* ================= WRITE-A-REVIEW MODAL ================= */
-function rvCompressSquare(file, size, done, fail){
-  if(!file || !/^image\//.test(file.type)){ fail('Please choose an image file.'); return; }
-  if(file.size > 12 * 1024 * 1024){ fail('That image is too large (12 MB max).'); return; }
-  var reader = new FileReader();
-  reader.onerror = function(){ fail('Could not read that image.'); };
-  reader.onload = function(){
-    var img = new Image();
-    img.onerror = function(){ fail('That image format isn\u2019t supported.'); };
-    img.onload = function(){
-      var side = Math.min(img.width, img.height), sx = (img.width - side) / 2, sy = (img.height - side) / 2;
-      var c = document.createElement('canvas'); c.width = size; c.height = size;
-      var x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, size, size);
-      x.drawImage(img, sx, sy, side, side, 0, 0, size, size);
-      done(c.toDataURL('image/jpeg', 0.82));
-    };
-    img.src = reader.result;
-  };
-  reader.readAsDataURL(file);
-}
 function rvFormError(msg){
   var e = document.getElementById('rf-error');
   e.textContent = msg || ''; e.classList.toggle('show', !!msg);
@@ -1571,17 +1551,17 @@ function rvPaintStars(hover){
   document.getElementById('rf-rate-label').textContent = v ? RV_RATE_TEXT[v] : '';
 }
 function rvSetRating(v){ RV_FORM.rating = v; rvPaintStars(0); }
-function rvSetAvatar(src){
-  RV_FORM.avatar = src || '';
-  var box = document.getElementById('rf-avatar-box'), img = document.getElementById('rf-avatar-img');
-  if(src){ img.src = src; box.classList.add('has'); } else { img.removeAttribute('src'); box.classList.remove('has'); }
-  document.getElementById('rf-avatar-remove').classList.toggle('show', !!src);
+function rvSetSending(on, label){
+  var btn = document.getElementById('rf-submit'); if(!btn) return;
+  RV_FORM.sending = !!on; btn.disabled = !!on;
+  if(!btn.getAttribute('data-label')) btn.setAttribute('data-label', btn.textContent);
+  btn.textContent = on ? (label || 'Posting\u2026') : btn.getAttribute('data-label');
 }
 function rvResetForm(){
   document.getElementById('rev-form').reset();
-  RV_FORM.rating = 0; RV_FORM.busy = 0;
-  rvSetAvatar(''); rvPaintStars(0); rvFormError('');
-  document.getElementById('rf-avatar-file').value = '';
+  RV_FORM.rating = 0;
+  if(RV_FORM.media) RV_FORM.media.reset();
+  rvPaintStars(0); rvFormError(''); rvSetSending(false);
 }
 function rvOpenModal(){
   var m = document.getElementById('review-modal');
@@ -1620,13 +1600,7 @@ function rvInitForm(){
     var b = stars.querySelector('.rf-star[data-v="' + n + '"]'); if(b) b.focus();
   });
 
-  document.getElementById('rf-avatar-file').addEventListener('change', function(){
-    var f = this.files && this.files[0]; if(!f) return;
-    RV_FORM.busy++;
-    rvCompressSquare(f, 160, function(d){ RV_FORM.busy--; rvSetAvatar(d); }, function(msg){ RV_FORM.busy--; rvFormError(msg); });
-    this.value = '';
-  });
-  document.getElementById('rf-avatar-remove').addEventListener('click', function(){ rvSetAvatar(''); });
+  if(window.NikoraReviewMedia) RV_FORM.media = NikoraReviewMedia.mount(document.getElementById('rf-media'));
 
   document.getElementById('rev-form').addEventListener('submit', rvSubmit);
   document.getElementById('rev-form').addEventListener('input', function(){ rvFormError(''); });
@@ -1635,51 +1609,77 @@ function rvInitForm(){
 
 function rvSubmit(e){
   if(e) e.preventDefault();
+  if(RV_FORM.sending) return;                                          /* no double posts while a video is uploading */
   var name = document.getElementById('rf-name').value.trim();
   var text = document.getElementById('rf-text').value.trim();
+  var media = RV_FORM.media;
 
   if(document.getElementById('rf-website').value){ rvResetForm(); rvCloseModal(); showToast('Thank you! Your review has been posted.'); return; }   /* honeypot */
   if(!rvHasStore()){ rvFormError('Reviews are temporarily unavailable. Please refresh the page and try again.'); return; }
   if(name.length < 2){ rvFormError('Please enter your name.'); document.getElementById('rf-name').focus(); return; }
   if(!(RV_FORM.rating >= 1 && RV_FORM.rating <= 5)){ rvFormError('Please choose a star rating.'); var s1 = document.querySelector('.rf-star'); if(s1) s1.focus(); return; }
   if(text.length < 10){ rvFormError('Please write a few words about your experience (at least 10 characters).'); document.getElementById('rf-text').focus(); return; }
-  if(RV_FORM.busy > 0){ rvFormError('Your photo is still processing. One moment.'); return; }
+  if(media && media.isBusy()){ rvFormError('Your photos are still processing. One moment.'); return; }
   var last = 0; try{ last = Number(localStorage.getItem('nk_rv_last') || 0); }catch(err){}
   if(Date.now() - last < 30000){ rvFormError('Please wait a moment before posting another review.'); return; }
 
-  var createdAt = Date.now();
-  var payload = { name: name, rating: RV_FORM.rating, text: text, createdAt: createdAt, date: new Date(createdAt).toLocaleDateString('en-US') };
-  if(RV_FORM.avatar) payload.avatar = RV_FORM.avatar;
-
-  /* 1) reviews-data.js: instant local update (fires 'reviewsUpdated', the list re-renders itself).
-        `verified` can never be self-claimed: the store forces it to false. */
-  var stored;
-  try{
-    var local = {}; Object.keys(payload).forEach(function(k){ local[k] = payload[k]; });
-    local._local = true;                                              /* until the cloud copy arrives */
-    stored = NikoraReviews.addReview(local);
-  }catch(err){ rvFormError(err && err.message ? err.message.replace(/^addReview:\s*/, '') : 'Could not save your review.'); return; }
-  var localId = stored[0].id;
-  try{ localStorage.setItem('nk_rv_last', String(createdAt)); }catch(err){}
-
   var cloud = typeof firebaseReady !== 'undefined' && firebaseReady;
-  rvResetForm(); rvCloseModal();
-  RV_FILTER = 'all'; RV_SORT = 'recent'; document.getElementById('rv-sort').value = 'recent';
-  Array.prototype.forEach.call(document.querySelectorAll('.rv-chip'), function(c){ c.setAttribute('aria-pressed', c.getAttribute('data-filter') === 'all' ? 'true' : 'false'); });
-  rvRender();
-  showToast(cloud ? 'Thank you! Your review has been posted.' : 'Thank you! Your review was saved on this device.');
-  var list = document.getElementById('reviews');
-  if(list) list.scrollIntoView({ behavior: RV_REDUCED ? 'auto' : 'smooth', block: 'start' });
+  var wantsVideo = !!(media && media.hasVideo());
+  var videoNote = '';
+  rvFormError('');
+  rvSetSending(true, wantsVideo ? 'Uploading video\u2026' : 'Posting\u2026');
 
-  /* 2) Firebase: share it with every visitor (best effort), then drop the local-only copy */
-  if(cloud){
-    db.ref('reviews/general').push().set(payload).then(function(){
-      NikoraReviews.setReviews(NikoraReviews.getReviews().filter(function(x){ return x.id !== localId; }));
-    }).catch(function(err){
-      console.warn('Firebase review write failed - kept on this device only.', err);
-      showToast('Saved on this device. We couldn\u2019t reach the server.');
-    });
-  }
+  /* step 1: the video (if any) goes to Firebase Storage first, so the review can store its link */
+  var videoStep;
+  if(!wantsVideo) videoStep = Promise.resolve('');
+  else if(!cloud){ videoNote = 'Videos need an internet connection, so yours was not attached.'; videoStep = Promise.resolve(''); }
+  else videoStep = media.uploadVideo().catch(function(err){ videoNote = (err && err.message) || 'The video could not be uploaded.'; return ''; });
+
+  videoStep.then(function(videoUrl){
+    var createdAt = Date.now();
+    var payload = { name: name, rating: RV_FORM.rating, text: text, createdAt: createdAt, date: new Date(createdAt).toLocaleDateString('en-US') };
+    var avatar = media ? media.getAvatar() : '', photos = media ? media.getPhotos() : [];
+    if(avatar) payload.avatar = avatar;
+    if(photos.length) payload.photos = photos;
+    if(videoUrl) payload.videos = [videoUrl];
+
+    /* step 2: reviews-data.js - instant local update (fires 'reviewsUpdated', the list re-renders itself).
+       `verified` can never be self-claimed: the store forces it to false. */
+    var stored;
+    try{
+      var local = {}; Object.keys(payload).forEach(function(k){ local[k] = payload[k]; });
+      local._local = true;                                              /* until the cloud copy arrives */
+      stored = NikoraReviews.addReview(local);
+    }catch(err){
+      rvSetSending(false);
+      rvFormError(err && err.message ? err.message.replace(/^addReview:\s*/, '') : 'Could not save your review.');
+      return;
+    }
+    var localId = stored[0].id;
+    try{ localStorage.setItem('nk_rv_last', String(createdAt)); }catch(err2){}
+
+    rvResetForm(); rvCloseModal();
+    RV_FILTER = 'all'; RV_SORT = 'recent'; document.getElementById('rv-sort').value = 'recent';
+    Array.prototype.forEach.call(document.querySelectorAll('.rv-chip'), function(c){ c.setAttribute('aria-pressed', c.getAttribute('data-filter') === 'all' ? 'true' : 'false'); });
+    rvRender();
+    showToast(videoNote ? ('Review posted. ' + videoNote) : (cloud ? 'Thank you! Your review has been posted.' : 'Thank you! Your review was saved on this device.'));
+    var list = document.getElementById('reviews');
+    if(list) list.scrollIntoView({ behavior: RV_REDUCED ? 'auto' : 'smooth', block: 'start' });
+
+    /* step 3: Firebase - share it with every visitor (best effort), then drop the local-only copy */
+    if(cloud){
+      db.ref('reviews/general').push().set(payload).then(function(){
+        NikoraReviews.setReviews(NikoraReviews.getReviews().filter(function(x){ return x.id !== localId; }));
+      }).catch(function(err3){
+        console.warn('Firebase review write failed - kept on this device only.', err3);
+        showToast('Saved on this device. We couldn\u2019t reach the server.');
+      });
+    }
+  }).catch(function(err){
+    console.warn('Review submit failed', err);
+    rvSetSending(false);
+    rvFormError('Something went wrong while posting your review. Please try again.');
+  });
 }
 
 /* ---- scroll reveal (staggered inside grids); falls back to showing everything ---- */
@@ -1734,5 +1734,6 @@ if(document.readyState === 'loading'){
 }
 </script>
 <script src="reviews-data.js"></script>
+<script src="review-media.js"></script>
 </body>
 </html>
