@@ -17,6 +17,7 @@
 })();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="view-transitions.js"></script>
 <title>Product — NIKORA</title>
 <meta name="description" content="Shop NIKORA beauty devices — facial wands, sculptors, LED therapy masks, body devices and glow ritual bundles.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -70,7 +71,7 @@ html{scroll-behavior:smooth;}
 body{
   background: linear-gradient(-45deg, #FAF7F2, #F8F4F0, #F5EFE6, #FAF7F2);
   background-size: 400% 400%;
-  animation: gradientShift 12s ease infinite;
+  background-position: 0% 50%;
   margin:0;
   color:var(--text);
   font-family:'Montserrat',sans-serif;
@@ -82,12 +83,19 @@ body{
 [data-theme="dark"] body{
   background: linear-gradient(-45deg, #0D0B12, #170E1B, #2A0F1D, #0D0B12);
   background-size: 400% 400%;
-  animation: gradientShift 12s ease infinite;
+  background-position: 0% 50%;
 }
 @keyframes gradientShift {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
+}
+/* gradientShift runs on DESKTOP only (>= 769px) and only without a reduced-motion preference; phones and tablets keep the gradient static for smooth 60 FPS scrolling. */
+@media (min-width:769px) and (prefers-reduced-motion:no-preference){
+  body, [data-theme="dark"] body{animation:gradientShift 12s ease infinite;}
+}
+@media (max-width:768px){
+  body, [data-theme="dark"] body{animation:none !important; background-position:0% 50%;}
 }
 @media (prefers-reduced-motion: reduce){
   body{animation:none;}
@@ -324,7 +332,11 @@ button{font-family:inherit;cursor:pointer;}
 .review-stars{color:var(--gold); font-size:13px; letter-spacing:1px;}
 .review-date{font-size:11px; color:var(--text-faint);}
 .review-text{font-size:13.5px; color:var(--text-soft); line-height:1.65; margin:8px 0 0;}
-.review-photo{margin-top:12px; width:96px; height:96px; border-radius:12px; overflow:hidden; border:1px solid var(--card-border);}
+.review-photos{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;}
+.review-photo{width:96px; height:96px; border-radius:12px; overflow:hidden; border:1px solid var(--card-border);}
+.review-who{display:flex; align-items:center; gap:10px; min-width:0;}
+.review-avatar{flex:none; width:38px; height:38px; border-radius:50%; object-fit:cover; border:1.5px solid rgba(var(--gold-rgb),.55);}
+.rf-submit-btn[disabled]{opacity:.65; cursor:progress;}
 .review-photo img{width:100%; height:100%; object-fit:cover;}
 
 
@@ -760,10 +772,11 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
 .rf-star-picker button.filled svg{fill:var(--gold); stroke:var(--gold);}
 .cutoff-bar svg, .urgency-bar svg{stroke:currentColor; fill:none;}
 </style>
-<script src="shipping-rules.js"></script>
+<script src="shipping-rules.js?v=20261108"></script>
+<script src="review-media.js"></script>
 </head>
 <body>
-<script src="nav.js"></script>
+<script src="nav.js?v=20261108"></script>
 
 
 <main>
@@ -800,7 +813,7 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
 
       <!-- ============ INFO / BUY BOX ============ -->
       <div class="product-info">
-        <div class="activity-pill" id="viewing-pill"><span class="activity-dot"></span><span id="viewing-text">1 person viewing this right now</span></div>
+        <div class="activity-pill" id="viewing-pill" hidden><span class="activity-dot"></span><span id="viewing-text"></span></div>
         <a class="p-brand" id="p-brand" href="catalog.html" hidden></a>
         <div class="p-category" id="p-category">Category</div>
         <h1 id="p-title">Product title</h1>
@@ -822,7 +835,7 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
 
         <div class="cutoff-bar">
           <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"><circle cx="12" cy="13" r="7"/><path d="M12 10v3l2 2M9 3h6"/></svg>
-          <span id="ship-est">Processed in 1&ndash;3 business days &middot; Free Express shipping on orders of $50.00+ ($4.99 flat rate below)</span>
+          <span id="ship-est">Delivered Korea (Suite A03231, Busan Hub) &middot; 2&ndash;4 days processing + 5&ndash;10 days international express &middot; Free Express shipping on orders of $50.00+ ($4.99 flat rate below)</span>
         </div>
 
         <div class="urgency-bar" id="urgency-bar">
@@ -886,7 +899,7 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
         </button>
         <div class="accordion-panel">
           <div class="accordion-panel-inner" id="panel-shipping">
-            <p>Orders are processed in 1–3 business days, then ship tracked. Express shipping is FREE on orders of $50.00 and above, otherwise a $4.99 flat rate per order.</p>
+            <p>Orders are fulfilled by Delivered Korea (Suite A03231, Busan Hub): 2–4 business days of processing, then 5–10 business days of international express delivery. Express shipping is FREE on orders of $50.00 and above, otherwise a $4.99 flat rate per order.</p>
             <p>Visible lifting results usually appear within 30–45 days of consistent daily use. Our 30-Day Money-Back Guarantee covers unopened and unused items in original packaging upon arrival.</p>
             <p>Customers are responsible for return shipping costs for change-of-mind returns. Defective, damaged or lost orders are covered by a free reshipment or a full refund.</p>
           </div>
@@ -931,15 +944,7 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
           <textarea id="rf-text" rows="4" placeholder="Share how this worked for you..."></textarea>
         </div>
         <div class="rf-field">
-          <label>Add a Photo (optional)</label>
-          <div class="rf-photo-row">
-            <label class="rf-photo-input-label">
-              <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>Upload Photo
-              <input type="file" id="rf-photo" accept="image/*">
-            </label>
-            <div class="rf-photo-preview" id="rf-photo-preview"><img id="rf-photo-preview-img" src="" alt="Preview"></div>
-            <button type="button" class="rf-photo-remove" id="rf-photo-remove"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>Remove</button>
-          </div>
+          <div id="rf-media"></div>
         </div>
         <div class="rf-error" id="rf-error">Please add your name, a star rating, and a short review.</div>
         <button type="button" class="rf-submit-btn" id="rf-submit-btn">Submit Review</button>
@@ -1345,7 +1350,7 @@ var HOWTO_BY_CATEGORY = {
   "Bundles & Sets": ['Follow the layering order in the Routine Recommendation on the catalog page.', 'Morning: essence, ampoule, then sunscreen.', 'Evening: essence, ampoule, Booster Wand (see its manual), then moisturizer; use the mask as directed on its pack.', 'Introduce one new product at a time.']
 };
 var DEFAULT_SHIPPING = [
-  'Orders are processed in 1–3 business days, then ship tracked. K-Beauty ships from K-Dropshipping (7–15 business days in transit) and devices from QKSource (3–7 business days). Express shipping is FREE on orders of $50.00 and above, otherwise a $4.99 flat rate per order. Items from both suppliers ship in separate packages.',
+  'Orders are fulfilled by Delivered Korea (Suite A03231, Busan Hub): 2–4 business days of processing, then 5–10 business days of tracked international express delivery. Express shipping is FREE on orders of $50.00 and above, otherwise a $4.99 flat rate per order. Every order ships as one package.',
   'Visible lifting results usually appear within 30–45 days of consistent daily use. Our 30-Day Money-Back Guarantee covers unopened and unused items in original packaging upon arrival.',
   'Customers are responsible for return shipping costs for change-of-mind returns. Defective, damaged or lost orders are covered by a free reshipment or a full refund.'
 ];
@@ -1505,14 +1510,14 @@ function renderProduct(){
     urgencyText.textContent = 'Only ' + stockCount + ' left in stock — order soon!';
   } else {
     urgencyBar.classList.add('instock');
-    urgencyText.textContent = 'In stock (' + stockCount + ' available), processed in 1–3 business days.';
+    urgencyText.textContent = 'In stock (' + stockCount + ' available), processed in 2–4 business days.';
   }
 
   document.getElementById('panel-science').innerHTML = benefitsPanelHtml(p);
   document.getElementById('panel-howto').innerHTML = '<ol>' + getHowTo(p).map(function(t){ return '<li>' + escapeHtml(t) + '</li>'; }).join('') + '</ol>';
   document.getElementById('panel-shipping').innerHTML = getShipping(p).map(function(t){ return '<p>' + escapeHtml(t) + '</p>'; }).join('');
   var shipEl = document.getElementById('ship-est'), shipTxt = window.NKShipping && NKShipping.cardLine(p.id);
-  if(shipEl && shipTxt) shipEl.textContent = shipTxt + ' \u00b7 Processed in 1\u20133 business days \u00b7 FREE Express shipping on orders of $50.00+';
+  if(shipEl && shipTxt) shipEl.textContent = shipTxt + ' \u00b7 Delivered Korea (Suite A03231, Busan Hub): 2\u20134 days processing + 5\u201310 days international express \u00b7 FREE Express shipping on orders of $50.00+';
 
   var ctaLabel = soldOut ? 'Sold Out' : 'Add to Cart';
   ['add-to-cart-btn', 'mcta-add-btn'].forEach(function(id){
@@ -1814,15 +1819,28 @@ function renderReviewList(reviews){
   var sorted = reviews.slice().sort(function(a,b){ return (b.date || 0) - (a.date || 0); });
   wrap.innerHTML = sorted.map(function(r){
     var dateLabel = r.date ? new Date(r.date).toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' }) : '';
-    var photoHtml = r.photo ? '<div class="review-photo"><img src="' + escapeAttr(r.photo) + '" alt="Photo from ' + escapeHtml(r.name) + '"></div>' : '';
+    var pics = [];
+    (function(){
+      var raw = r.photos ? (Array.isArray(r.photos) ? r.photos : Object.keys(r.photos).map(function(k){ return r.photos[k]; })) : [];
+      if(r.photo) raw.unshift(r.photo);
+      raw.forEach(function(x){ if(nkSafeImgSrc(x) && pics.indexOf(x) === -1) pics.push(x); });
+    })();
+    pics = pics.slice(0, 5);
+    var photoHtml = pics.length ? '<div class="review-photos">' + pics.map(function(src){
+      return '<div class="review-photo"><img src="' + escapeAttr(src) + '" alt="Photo from ' + escapeHtml(r.name) + '" loading="lazy"></div>';
+    }).join('') + '</div>' : '';
+    var vidSrc = (r.videos && (Array.isArray(r.videos) ? r.videos[0] : r.videos[Object.keys(r.videos)[0]])) || '';
+    var videoHtml = (window.NikoraReviewMedia && vidSrc) ? NikoraReviewMedia.videoHtml(vidSrc) : '';
+    var avaSrc = nkSafePhoto(r.avatar || '');
+    var avaHtml = avaSrc ? '<img class="review-avatar" src="' + escapeAttr(avaSrc) + '" alt="" loading="lazy">' : '';
     return '<div class="review-card">' +
       '<div class="review-card-head">' +
-        '<span class="review-author">' + escapeHtml(r.name) + '</span>' +
+        '<span class="review-who">' + avaHtml + '<span class="review-author">' + escapeHtml(r.name) + '</span></span>' +
         '<span class="review-stars">' + starsHtml(r.rating) + '</span>' +
         '<span class="review-date">' + dateLabel + '</span>' +
       '</div>' +
       '<p class="review-text">' + escapeHtml(r.text) + '</p>' +
-      photoHtml +
+      photoHtml + videoHtml +
     '</div>';
   }).join('');
 }
@@ -1867,68 +1885,73 @@ function initReviewForm(){
     });
   });
 
-  document.getElementById('rf-photo').addEventListener('change', function(e){
-    var input = e.target, file = input.files && input.files[0];
-    if(!file) return;
-    nkCompressImage(file, function(dataUrl){
-      pendingReviewPhoto = dataUrl;
-      document.getElementById('rf-photo-preview-img').src = dataUrl;
-      document.getElementById('rf-photo-preview').classList.add('show');
-    }, function(msg){ input.value = ''; showToast(msg); });
-  });
-  document.getElementById('rf-photo-remove').addEventListener('click', function(){
-    pendingReviewPhoto = null;
-    document.getElementById('rf-photo').value = '';
-    document.getElementById('rf-photo-preview').classList.remove('show');
-    document.getElementById('rf-photo-preview-img').src = '';
-  });
+  var rfMedia = window.NikoraReviewMedia ? NikoraReviewMedia.mount(document.getElementById('rf-media')) : null;
+  var rfBtn = document.getElementById('rf-submit-btn'), rfSending = false;
+  function rfSending_(on, label){
+    rfSending = !!on; rfBtn.disabled = !!on;
+    if(!rfBtn.getAttribute('data-label')) rfBtn.setAttribute('data-label', rfBtn.textContent);
+    rfBtn.textContent = on ? (label || 'Posting\u2026') : rfBtn.getAttribute('data-label');
+  }
+  function rfFail(msg){ var el = document.getElementById('rf-error'); el.textContent = msg; el.classList.add('show'); }
 
-  document.getElementById('rf-submit-btn').addEventListener('click', function(){
+  rfBtn.addEventListener('click', function(){
+    if(rfSending) return;
     var name = document.getElementById('rf-name').value.trim();
     var text = document.getElementById('rf-text').value.trim();
     var errorEl = document.getElementById('rf-error');
 
     if(!name || !text || selectedStarRating < 1){
-      errorEl.classList.add('show');
+      rfFail('Please add your name, a star rating, and a short review.');
       return;
     }
+    if(rfMedia && rfMedia.isBusy()){ rfFail('Your photos are still processing. One moment.'); return; }
     errorEl.classList.remove('show');
 
-    var reviewData = {
-      name: name,
-      rating: selectedStarRating,
-      text: text,
-      photo: pendingReviewPhoto,
-      date: Date.now()
-    };
+    var wantsVideo = !!(rfMedia && rfMedia.hasVideo()), videoNote = '';
+    rfSending_(true, wantsVideo ? 'Uploading video\u2026' : 'Posting\u2026');
 
-    if(firebaseReady){
-      db.ref('reviews/' + PRODUCT_ID).push(reviewData).catch(function(err){
-        console.warn('Firebase review write failed, saving locally only.', err);
+    var videoStep;
+    if(!wantsVideo) videoStep = Promise.resolve('');
+    else if(!firebaseReady){ videoNote = ' Videos need an internet connection, so yours was not attached.'; videoStep = Promise.resolve(''); }
+    else videoStep = rfMedia.uploadVideo().catch(function(err){ videoNote = ' ' + ((err && err.message) || 'The video could not be uploaded.'); return ''; });
+
+    videoStep.then(function(videoUrl){
+      var photos = rfMedia ? rfMedia.getPhotos() : [], avatar = rfMedia ? rfMedia.getAvatar() : '';
+      var reviewData = { name: name, rating: selectedStarRating, text: text, date: Date.now() };
+      if(photos.length){ reviewData.photos = photos; reviewData.photo = photos[0]; }   /* `photo` keeps older cached readers working */
+      if(avatar) reviewData.avatar = avatar;
+      if(videoUrl) reviewData.videos = [videoUrl];
+
+      function saveLocal(){
         var reviews = getReviews();
         reviewData.id = Date.now() + '-' + Math.floor(Math.random()*1000);
         reviews.push(reviewData);
         saveReviews(reviews);
         refreshReviews();
-      });
-      // on success the '/reviews' listener above re-renders automatically
-    } else {
-      var reviews = getReviews();
-      reviewData.id = Date.now() + '-' + Math.floor(Math.random()*1000);
-      reviews.push(reviewData);
-      saveReviews(reviews);
-      refreshReviews();
-    }
+      }
+      if(firebaseReady){
+        db.ref('reviews/' + PRODUCT_ID).push(reviewData).catch(function(err){
+          console.warn('Firebase review write failed, saving locally only.', err);
+          saveLocal();
+        });
+        // on success the '/reviews' listener above re-renders automatically
+      } else {
+        saveLocal();
+      }
 
-    document.getElementById('rf-name').value = '';
-    document.getElementById('rf-text').value = '';
-    document.getElementById('rf-photo').value = '';
-    document.getElementById('rf-photo-preview').classList.remove('show');
-    pendingReviewPhoto = null;
-    selectedStarRating = 0;
-    document.querySelectorAll('#rf-star-picker button').forEach(function(b){ b.classList.remove('filled'); });
-
-    showToast('Thanks — your review was posted!');
+      document.getElementById('rf-name').value = '';
+      document.getElementById('rf-text').value = '';
+      if(rfMedia) rfMedia.reset();
+      pendingReviewPhoto = null;
+      selectedStarRating = 0;
+      document.querySelectorAll('#rf-star-picker button').forEach(function(b){ b.classList.remove('filled'); });
+      rfSending_(false);
+      showToast('Thanks \u2014 your review was posted!' + videoNote);
+    }).catch(function(err){
+      console.warn('Review submit failed', err);
+      rfSending_(false);
+      rfFail('Something went wrong while posting your review. Please try again.');
+    });
   });
 
 }
@@ -2652,30 +2675,37 @@ function setTheme(mode){
 
 
 
-/* ================= LIVE VIEWING BADGE (real presence, no simulated numbers) =================
+/* ================= LIVE VIEWING BADGE (real presence, shown only at or above LIVE_VIEWERS_MIN) =================
    Each open tab registers a child under /presence/<PRODUCT_ID> that Firebase
    removes automatically on disconnect; the badge shows how many exist.
    If Firebase (or the /presence rules) is unavailable the badge stays hidden. */
+/* Minimum-threshold rule: the widget is only rendered when at least this many people are on the page.
+   Below it, nothing is shown at all (no "0" / "1 person" / empty pill). Change this one number to tune it (3 or 5 are typical). */
+var LIVE_VIEWERS_MIN = 3;
+
 function initLivePresence(){
   if(!firebaseReady) return;
   var pill = document.getElementById('viewing-pill');
   var text = document.getElementById('viewing-text');
+  function showViewers(n){
+    if(n >= LIVE_VIEWERS_MIN){
+      text.textContent = n + ' people viewing this right now';
+      pill.hidden = false; pill.classList.add('show');
+    } else {
+      text.textContent = '';
+      pill.classList.remove('show'); pill.hidden = true;
+    }
+  }
   try{
     var listRef = db.ref('presence/' + PRODUCT_ID);
     var mine = listRef.push();
     mine.onDisconnect().remove()
       .then(function(){ return mine.set(true); })
-      .catch(function(){ pill.classList.remove('show'); });
+      .catch(function(){ showViewers(0); });
     window.addEventListener('pagehide', function(){ try{ mine.remove(); }catch(e){} });
     listRef.on('value', function(snap){
-      var n = snap.numChildren();
-      if(n >= 1){
-        text.textContent = n + (n === 1 ? ' person' : ' people') + ' viewing this right now';
-        pill.classList.add('show');
-      } else {
-        pill.classList.remove('show');
-      }
-    }, function(){ pill.classList.remove('show'); });
+      showViewers(snap.numChildren());
+    }, function(){ showViewers(0); });
   }catch(e){
     console.warn('Live presence unavailable', e);
   }
