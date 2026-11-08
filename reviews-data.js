@@ -13,7 +13,7 @@
  *
  * Review shape (all fields optional except name, rating and text):
  *   { id, name, avatar (https/data-image URL, else an SVG initials badge is drawn), rating 1-5, text,
- *     verified (boolean), product, country, createdAt (ms), date (display string), photos: [url, ...] }
+ *     verified (boolean), product, country, createdAt (ms), date (display string), photos: [url, ...] (max 5), videos: [https url] (max 1) }
  */
 (function (global) {
   'use strict';
@@ -93,8 +93,16 @@
     if (Array.isArray(raw.photos)) raw.photos.forEach(add);
     else if (raw.photos && typeof raw.photos === 'object') Object.keys(raw.photos).forEach(function (k) { add(raw.photos[k]); });
     add(raw.photo);
-    r.photos = list.slice(0, 4);
+    r.photos = list.slice(0, 5);
     if (r.photos.length) r.photo = r.photos[0]; else delete r.photo;
+
+    /* review videos: only https URLs (Firebase Storage download links) are ever rendered, max 1 */
+    var vids = [];
+    function addVideo(v) { if (typeof v === 'string' && RE_HTTPS.test(v.trim()) && vids.indexOf(v.trim()) === -1) vids.push(v.trim()); }
+    if (Array.isArray(raw.videos)) raw.videos.forEach(addVideo);
+    else if (raw.videos && typeof raw.videos === 'object') Object.keys(raw.videos).forEach(function (k) { addVideo(raw.videos[k]); });
+    r.videos = vids.slice(0, 1);
+    if (!r.videos.length) delete r.videos;
     return r;
   }
 
@@ -136,7 +144,7 @@
 
   function signature(list) {
     return list.map(function (r) {
-      return r.id + ':' + r.rating + ':' + (r.verified ? 1 : 0) + ':' + r.text.length + ':' + (r.photos ? r.photos.length : 0);
+      return r.id + ':' + r.rating + ':' + (r.verified ? 1 : 0) + ':' + r.text.length + ':' + (r.photos ? r.photos.length : 0) + ':' + (r.videos ? r.videos.length : 0);
     }).join('|');
   }
 
@@ -215,6 +223,7 @@
     '.nkrv-photo{width:78px;height:78px;padding:0;border-radius:12px;overflow:hidden;cursor:pointer;border:1px solid var(--card-border,rgba(0,0,0,.1));background:transparent}',
     '.nkrv-photo img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .25s ease}',
     '.nkrv-photo:hover img{transform:scale(1.06)}.nkrv-photo:focus-visible{outline:2px solid var(--gold,#c9a15b);outline-offset:2px}',
+    '.nkrv-vid{display:block;width:100%;max-width:340px;max-height:260px;margin-top:12px;border-radius:14px;background:#0B0B0E;border:1px solid var(--card-border,rgba(0,0,0,.1))}',
     '.nkrv-foot{margin-top:14px}',
     '.nkrv-empty{padding:40px 24px;text-align:center;border-radius:24px;background:var(--card-bg,rgba(255,255,255,.7));border:1px solid var(--card-border,rgba(0,0,0,.08))}',
     ".nkrv-empty h3{margin:0 0 8px;font-family:'Playfair Display',serif;font-weight:500;font-size:23px}",
@@ -286,6 +295,7 @@
       (r.product ? '<p class="nkrv-prod">' + esc(r.product) + '</p>' : '') +
       '<p class="nkrv-text">' + esc(r.text) + '</p>' +
       (thumbs ? '<div class="nkrv-thumbs">' + thumbs + '</div>' : '') +
+      (r.videos && r.videos.length ? '<video class="nkrv-vid" src="' + esc(r.videos[0]) + '" controls playsinline preload="metadata" aria-label="Video from ' + esc(r.name) + '"></video>' : '') +
       (footer ? '<div class="nkrv-foot">' + footer + '</div>' : '') +
     '</article>';
   }
@@ -352,7 +362,7 @@
 
     var all = load().slice();
     var list = all.filter(function (r) {
-      if (filter === 'photos' && !(r.photos && r.photos.length)) return false;
+      if (filter === 'photos' && !((r.photos && r.photos.length) || (r.videos && r.videos.length))) return false;
       if (filter === 'verified' && !r.verified) return false;
       if (minRating && r.rating < minRating) return false;
       if (product && (r.product || '').toLowerCase().indexOf(product) === -1) return false;
