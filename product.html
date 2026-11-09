@@ -291,6 +291,27 @@ button{font-family:inherit;cursor:pointer;}
 .accordion-panel-inner li{margin-bottom:8px;}
 .accordion-panel-inner p{margin:0 0 12px;}
 .accordion-panel-inner p:last-child{margin-bottom:0;}
+/* ---- rich text from the admin editor (descHtml / howtoHtml): headings, lists, quotes and images placed inside the text ---- */
+.nk-rich{display:flow-root; overflow-wrap:anywhere;}
+.nk-rich h2,.nk-rich h3,.nk-rich h4{font-family:'Playfair Display',serif; color:var(--text); line-height:1.3; margin:20px 0 8px;}
+.nk-rich h2{font-size:21px;} .nk-rich h3{font-size:17px;} .nk-rich h4{font-size:14.5px;}
+.nk-rich > :first-child{margin-top:0;}
+.nk-rich strong,.nk-rich b{color:var(--text); font-weight:600;}
+.nk-rich a{color:var(--gold); text-decoration:underline; text-underline-offset:2px;}
+.nk-rich ul,.nk-rich ol{margin:0 0 12px; padding-left:22px;}
+.nk-rich blockquote{margin:14px 0; padding:6px 16px; border-left:3px solid var(--gold); color:var(--text-soft); font-style:italic;}
+.nk-rich hr{border:0; border-top:1px solid var(--line); margin:18px 0;}
+.nk-rich figure{margin:16px 0; width:100%;}
+.nk-rich figure img,.nk-rich img{display:block; width:100%; height:auto; border-radius:12px;}
+.nk-rich figcaption{font-size:12px; color:var(--text-faint); text-align:center; margin-top:6px;}
+.nk-rich .nk-a-left{float:left; margin:4px 18px 10px 0;}
+.nk-rich .nk-a-right{float:right; margin:4px 0 10px 18px;}
+.nk-rich .nk-a-center{margin-left:auto; margin-right:auto; float:none;}
+.nk-rich .nk-w-25{width:25%;} .nk-rich .nk-w-33{width:33%;} .nk-rich .nk-w-50{width:50%;} .nk-rich .nk-w-75{width:75%;} .nk-rich .nk-w-100{width:100%;}
+@media (max-width:600px){
+  .nk-rich .nk-a-left,.nk-rich .nk-a-right{float:none; margin:14px 0;}          /* floats stack full-width on phones */
+  .nk-rich .nk-w-25,.nk-rich .nk-w-33,.nk-rich .nk-w-50{width:100%;}
+}
 
 /* ---------------- STICKY MOBILE CTA ---------------- */
 .mobile-cta-bar{
@@ -773,6 +794,7 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
 .cutoff-bar svg, .urgency-bar svg{stroke:currentColor; fill:none;}
 </style>
 <script src="shipping-rules.js?v=20261108"></script>
+<script src="cart-recs.js?v=20261109"></script>
 <script src="review-media.js"></script>
 </head>
 <body>
@@ -899,7 +921,7 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
         </button>
         <div class="accordion-panel">
           <div class="accordion-panel-inner" id="panel-shipping">
-            <p>Orders are fulfilled by Delivered Korea (Suite A03231, Busan Hub): 2–4 business days of processing, then 5–10 business days of international express delivery. Express shipping is FREE on orders of $50.00 and above, otherwise a $4.99 flat rate per order.</p>
+            <p>Ships from our Busan Hub (Delivered Korea) with 2–4 days processing and 5–10 business days international express delivery (FedEx, DHL, K-Packet). Express shipping is FREE on orders of $50.00+, otherwise a $4.99 flat rate per order.</p>
             <p>Visible lifting results usually appear within 30–45 days of consistent daily use. Our 30-Day Money-Back Guarantee covers unopened and unused items in original packaging upon arrival.</p>
             <p>Customers are responsible for return shipping costs for change-of-mind returns. Defective, damaged or lost orders are covered by a free reshipment or a full refund.</p>
           </div>
@@ -1013,7 +1035,7 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
   <div class="cart-recs-section" id="cart-recs-section">
     <div class="cart-recs-head">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9M14 17H5M17 3l3 4-3 4M7 21l-3-4 3-4"/></svg>
-      Frequently Bought Together
+      <span id="cart-recs-title">Trending K-Beauty Best Sellers</span>
     </div>
     <div class="cart-recs-grid" id="cart-recs-grid"></div>
   </div>
@@ -1350,7 +1372,7 @@ var HOWTO_BY_CATEGORY = {
   "Bundles & Sets": ['Follow the layering order in the Routine Recommendation on the catalog page.', 'Morning: essence, ampoule, then sunscreen.', 'Evening: essence, ampoule, Booster Wand (see its manual), then moisturizer; use the mask as directed on its pack.', 'Introduce one new product at a time.']
 };
 var DEFAULT_SHIPPING = [
-  'Orders are fulfilled by Delivered Korea (Suite A03231, Busan Hub): 2–4 business days of processing, then 5–10 business days of tracked international express delivery. Express shipping is FREE on orders of $50.00 and above, otherwise a $4.99 flat rate per order. Every order ships as one package.',
+  'Ships from our Busan Hub (Delivered Korea) with 2–4 days processing and 5–10 business days international express delivery (FedEx, DHL, K-Packet). Express shipping is FREE on orders of $50.00+, otherwise a $4.99 flat rate per order.',
   'Visible lifting results usually appear within 30–45 days of consistent daily use. Our 30-Day Money-Back Guarantee covers unopened and unused items in original packaging upon arrival.',
   'Customers are responsible for return shipping costs for change-of-mind returns. Defective, damaged or lost orders are covered by a free reshipment or a full refund.'
 ];
@@ -1404,6 +1426,57 @@ function stripEmoji(str){
   return String(str == null ? '' : str)
     .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{20E3}]/gu, '')
     .replace(/\s{2,}/g, ' ').trim();
+}
+
+/* ---- rich text helpers: sanitizer (same whitelist as the admin editor, applied again on the storefront) + panel builder ---- */
+var RT_TAGS = {P:1,H2:1,H3:1,H4:1,STRONG:1,B:1,EM:1,I:1,U:1,BR:1,UL:1,OL:1,LI:1,A:1,IMG:1,FIGURE:1,FIGCAPTION:1,BLOCKQUOTE:1,HR:1};
+var RT_DROP = {SCRIPT:1,STYLE:1,IFRAME:1,OBJECT:1,EMBED:1,SVG:1,MATH:1,FORM:1,INPUT:1,TEXTAREA:1,SELECT:1,BUTTON:1,LINK:1,META:1,TEMPLATE:1,NOSCRIPT:1,VIDEO:1,AUDIO:1};
+var RT_CLASS = /^(nk-a-(left|right|center)|nk-w-(25|33|50|75|100))$/;
+var RT_LINK = /^(https:\/\/\S+|mailto:\S+|#[\w-]*|\/(?!\/)\S*|[\w\-\/]+\.html(\?\S*)?(#\S*)?)$/i;
+function cleanRich(html){
+  if(typeof html !== 'string' || !html.trim()) return '';
+  var doc = new DOMParser().parseFromString('<!doctype html><body>' + html, 'text/html');
+  (function walk(parent){
+    Array.prototype.slice.call(parent.childNodes).forEach(function(n){
+      if(n.nodeType === 3) return;
+      if(n.nodeType !== 1){ parent.removeChild(n); return; }
+      var tag = n.tagName;
+      if(RT_DROP[tag]){ parent.removeChild(n); return; }
+      walk(n);
+      if(!RT_TAGS[tag]){ while(n.firstChild) parent.insertBefore(n.firstChild, n); parent.removeChild(n); return; }
+      var keep = {};
+      if(tag === 'A'){
+        var h = (n.getAttribute('href') || '').trim();
+        if(RT_LINK.test(h)){ keep.href = h; if(/^https:/i.test(h)){ keep.target = '_blank'; keep.rel = 'noopener noreferrer'; } }
+      }
+      if(tag === 'IMG'){
+        var s = (n.getAttribute('src') || '').trim();
+        if(!/^https:\/\/\S+$/i.test(s)){ parent.removeChild(n); return; }
+        keep.src = s; keep.alt = (n.getAttribute('alt') || '').slice(0, 200); keep.loading = 'lazy';
+      }
+      if(tag === 'FIGURE'){
+        var cls = (n.getAttribute('class') || '').split(/\s+/).filter(function(c){ return RT_CLASS.test(c); });
+        if(cls.length) keep['class'] = cls.join(' ');
+      }
+      Array.prototype.slice.call(n.attributes).forEach(function(a){ n.removeAttribute(a.name); });
+      Object.keys(keep).forEach(function(k){ n.setAttribute(k, keep[k]); });
+    });
+  })(doc.body);
+  Array.prototype.slice.call(doc.body.querySelectorAll('figure')).forEach(function(f){ if(!f.querySelector('img')) f.parentNode.removeChild(f); });
+  return doc.body.innerHTML.trim();
+}
+/* Rich panel markup, or '' when the product has no rich text (the caller then keeps the plain-text panel). */
+function richPanelHtml(raw){
+  var clean = cleanRich(raw);
+  return clean ? '<div class="nk-rich">' + clean + '</div>' : '';
+}
+/* Images inside rich text change the panel height after they load: re-measure the open accordion panels. */
+function watchRichImages(root){
+  Array.prototype.forEach.call(root.querySelectorAll('.nk-rich img'), function(img){
+    if(img.complete) return;
+    img.addEventListener('load', refreshAccordionHeights, { once: true });
+    img.addEventListener('error', function(){ var f = img.closest('figure') || img; if(f.parentNode) f.parentNode.removeChild(f); refreshAccordionHeights(); }, { once: true });
+  });
 }
 
 function escapeHtml(str){
@@ -1513,8 +1586,11 @@ function renderProduct(){
     urgencyText.textContent = 'In stock (' + stockCount + ' available), processed in 2–4 business days.';
   }
 
-  document.getElementById('panel-science').innerHTML = benefitsPanelHtml(p);
-  document.getElementById('panel-howto').innerHTML = '<ol>' + getHowTo(p).map(function(t){ return '<li>' + escapeHtml(t) + '</li>'; }).join('') + '</ol>';
+  /* admin rich text (descHtml / howtoHtml, with images placed inside the text) wins; products without it keep the plain-text panels */
+  var sciPanel = document.getElementById('panel-science'), howPanel = document.getElementById('panel-howto');
+  sciPanel.innerHTML = richPanelHtml(p.descHtml) || benefitsPanelHtml(p);
+  howPanel.innerHTML = richPanelHtml(p.howtoHtml) || ('<ol>' + getHowTo(p).map(function(t){ return '<li>' + escapeHtml(t) + '</li>'; }).join('') + '</ol>');
+  watchRichImages(sciPanel); watchRichImages(howPanel);
   document.getElementById('panel-shipping').innerHTML = getShipping(p).map(function(t){ return '<p>' + escapeHtml(t) + '</p>'; }).join('');
   var shipEl = document.getElementById('ship-est'), shipTxt = window.NKShipping && NKShipping.cardLine(p.id);
   if(shipEl && shipTxt) shipEl.textContent = shipTxt + ' \u00b7 Delivered Korea (Suite A03231, Busan Hub): 2\u20134 days processing + 5\u201310 days international express \u00b7 FREE Express shipping on orders of $50.00+';
@@ -1991,16 +2067,29 @@ var NK_ICONS = {
 
 /* Fallback pool so the recommendations strip is NEVER empty (used until Firebase '/products' answers, or if it fails/is empty). */
 var NK_FALLBACK = [
-  { id:'1', name:"COSRX Advanced Snail 96 Mucin Power Essence", brand:"COSRX", price:25.00, category:"Essences", img:'https://images.unsplash.com/photo-1556228722-d119f018d480?w=400' },
+  { id:'1', name:"COSRX Advanced Snail 96 Mucin Power Essence", brand:"COSRX", price:25.00, category:"Essences", img:'https://images.unsplash.com/photo-1556228722-d119f018d480?w=400', flag:"Bestseller #3", bestseller:true, bestsellerRank:3 },
   { id:'2', name:"Anua Heartleaf 77% Soothing Toner 250ml", brand:"Anua", price:22.00, category:"Toners", img:'https://images.unsplash.com/photo-1608248597261-83325b6ba584?w=400' },
-  { id:'3', name:"Beauty of Joseon Relief Sun: Rice + Probiotics SPF50+", brand:"Beauty of Joseon", price:18.00, category:"Sun Care", img:'https://images.unsplash.com/photo-1567928254714-3a216c5b969d?w=400' },
+  { id:'3', name:"Beauty of Joseon Relief Sun: Rice + Probiotics SPF50+", brand:"Beauty of Joseon", price:18.00, category:"Sun Care", img:'https://images.unsplash.com/photo-1567928254714-3a216c5b969d?w=400', flag:"Bestseller #4", bestseller:true, bestsellerRank:4 },
   { id:'4', name:"Skin1004 Madagascar Centella Ampoule 100ml", brand:"Skin1004", price:24.00, category:"Serums & Ampoules", img:'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400' },
   { id:'5', name:"Laneige Lip Sleeping Mask Berry", brand:"Laneige", price:24.00, category:"Lip Care", img:'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?w=400' },
   { id:'6', name:"Biodance Bio-Collagen Real Deep Mask Set", brand:"Biodance", price:19.00, category:"Masks", img:'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=400' },
   { id:'7', name:"Round Lab Birch Juice Moisturizing Cream 80ml", brand:"Round Lab", price:28.00, category:"Moisturizers", img:'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?w=400' },
-  { id:'8', name:"NIKORA Electroporation & LED Skin Booster Wand", brand:"NIKORA Beauty Tech", price:129.00, category:"Facial Wand", img:'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=400' },
+  { id:'8', name:"NIKORA Electroporation & LED Skin Booster Wand", brand:"NIKORA Beauty Tech", price:129.00, category:"Facial Wand", img:'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=400', flag:"Bestseller #1", bestseller:true, bestsellerRank:1 },
   { id:'9', name:"NIKORA Cryo-Cooling Ice Globe Sculptor", brand:"NIKORA Beauty Tech", price:39.00, category:"Cooling Therapy", img:'https://images.unsplash.com/photo-1512290900673-10705a3962d3?w=400' },
-  { id:'10', name:"The NIKORA x K-Beauty Glass Skin Ritual Set", brand:"NIKORA Bundles", price:159.00, category:"Bundles & Sets", img:'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400' }
+  { id:'10', name:"The NIKORA x K-Beauty Glass Skin Ritual Set", brand:"NIKORA Bundles", price:159.00, category:"Bundles & Sets", img:'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400', flag:"Bestseller #2 Bundle", bestseller:true, bestsellerRank:2 },
+  { id:'11', name:"Medicube Glutathione Glow Serum 50ml", brand:"Medicube", price:32.00, category:"Serums & Ampoules", img:'' },
+  { id:'12', name:"Torriden DIVE-IN Low Molecule Hyaluronic Acid Serum 50ml", brand:"Torriden", price:23.00, category:"Serums & Ampoules", img:'' },
+  { id:'13', name:"Mixsoon Bean Essence 50ml", brand:"Mixsoon", price:28.00, category:"Essences", img:'', flag:"Bestseller", bestseller:true, bestsellerRank:null },
+  { id:'14', name:"Numbuzin No.3 Skin Softening Serum 50ml", brand:"Numbuzin", price:26.00, category:"Serums & Ampoules", img:'' },
+  { id:'15', name:"I'm From Rice Toner 150ml", brand:"I'm From", price:27.00, category:"Toners", img:'' },
+  { id:'16', name:"Medicube Zero Pore Pad 2.0 (70 pads)", brand:"Medicube", price:24.00, category:"Toners & Pads", img:'' },
+  { id:'17', name:"Kahi Wrinkle Bounce Multi Balm 9g", brand:"Kahi", price:29.00, category:"Special Care", img:'' },
+  { id:'18', name:"MEDIHEAL Madecassoside Trace Toner Pad (100 Pads)", brand:"MEDIHEAL", price:24.00, category:"Toners & Pads", img:'', flag:"Bestseller", bestseller:true, bestsellerRank:null },
+  { id:'19', name:"d'Alba White Truffle First Spray Serum 100ml", brand:"d'Alba", price:28.00, category:"Serums & Mists", img:'', flag:"Bestseller", bestseller:true, bestsellerRank:null },
+  { id:'20', name:"VT Cosmetics Reedle Shot 100 Micro-Needling Booster 50ml", brand:"VT Cosmetics", price:34.00, category:"Beauty Tech & Serums", img:'', flag:"Bestseller", bestseller:true, bestsellerRank:null },
+  { id:'21', name:"Anua Niacinamide 10% + TXA 4% Dark Spot Correcting Serum 30ml", brand:"Anua", price:22.00, category:"Serums & Ampoules", img:'' },
+  { id:'22', name:"Medicube Collagen Night Wrapping Peel-Off Mask 75ml", brand:"Medicube", price:21.00, category:"Masks", img:'' },
+  { id:'23', name:"TIRTIR Mask Fit Red Cushion Foundation (Full Range)", brand:"TIRTIR", price:25.00, category:"Makeup & Complexion", img:'' }
 ];
 
 function nkEsc(str){
@@ -2067,7 +2156,8 @@ function nkNormalize(p, key){
   var price = Number(p.price);
   if(!name || !(price > 0)) return null;
   var img = (Array.isArray(p.images) && p.images[0]) || p.img || p.imgUrl || '';
-  return { id: String(p.id != null ? p.id : key), name: String(name), brand: p.brand ? String(p.brand) : '', price: price, img: String(img || ''), category: p.category || '' };
+  return { id: String(p.id != null ? p.id : key), name: String(name), brand: p.brand ? String(p.brand) : '', price: price, img: String(img || ''), category: p.category || '',
+    flag: typeof p.flag === 'string' ? p.flag : null, bestseller: p.bestseller === true || p.isBestseller === true, bestsellerRank: p.bestsellerRank != null ? p.bestsellerRank : null };   /* flags kept for the trending / best-seller picks in cart-recs.js */
 }
 function nkListFromObject(obj){
   var out = [];
@@ -2246,18 +2336,19 @@ function renderCartRecs(cart){
   var grid = document.getElementById('cart-recs-grid');
   if(!section || !grid) return;
 
-  var excluded = {};
-  cart.forEach(function(c){ nkOwned(c.id).forEach(function(k){ excluded[k] = true; }); });
   var current = (typeof CURRENT_PRODUCT !== 'undefined' && CURRENT_PRODUCT) ? CURRENT_PRODUCT : null;
-  if(current) nkOwned(current.id).forEach(function(k){ excluded[k] = true; });               /* product page: skip the item being viewed */
-
   var pool = NK_PRODUCTS.length ? NK_PRODUCTS : NK_FALLBACK;
-  var candidates = pool.filter(function(p){ return !excluded[nkKey(p.id)]; });
-  /* pair skincare with devices and devices with skincare, based on the bag and the product being viewed */
-  var context = cart.map(function(c){ return c.id; });
-  if(current) context.push(current.id);
-  candidates = nkSortRecs(candidates, context);
-  var picks = candidates.slice(0, NK_MAX_RECS);
+  /* cart-recs.js: empty bag -> "Trending K-Beauty Best Sellers"; items in the bag -> compatible cross-sells (category rules, see RULES there) */
+  var rec;
+  if(window.NKCartRecs){
+    rec = NKCartRecs.select({ cart: cart, pool: pool, current: current, max: NK_MAX_RECS });
+    NKCartRecs.setTitle(rec.title);
+  } else {                                                       /* cart-recs.js missing: plain pool minus what is already in the bag */
+    var inBag = {}; cart.forEach(function(c){ inBag[String(c.id)] = true; });
+    if(current) inBag[String(current.id)] = true;
+    rec = { picks: pool.filter(function(p){ return !inBag[String(p.id)]; }).slice(0, NK_MAX_RECS) };
+  }
+  var picks = rec.picks;
 
   section.style.display = 'block';                               /* the recommendations section is NEVER hidden */
   if(!picks.length){
