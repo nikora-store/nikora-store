@@ -1339,4 +1339,143 @@
 
   if (document.body || document.currentScript) { mount(); }
   else { document.addEventListener('DOMContentLoaded', mount); }
+})()
+
+/* ======================================================================
+ * NIKORA SETTINGS CONNECTOR (managed from the admin "Site Settings & CMS" theme editor)
+ * Applies, for every visitor on every page, the values saved in Firebase /site_content:
+ *   theme_heading_font, theme_body_font, theme_accent, theme_radius  -> fonts, accent color, button shape
+ *   header_nav [{href,label,hidden}]                                  -> header / mobile menu link labels + visibility
+ *   home_sections [{key,hidden,title,subtitle}]                       -> homepage section visibility / headings
+ * Re-applies on every NikoraSite change and whenever the header re-renders. With ?nk_preview=1 inside the admin
+ * iframe it also enables click-to-edit. Keep in sync with nkConnector() in the admin file.
+ * ====================================================================== */
+(function () {
+var nkConnector = function(){
+  if(window.__nkConn) return; window.__nkConn = true;
+  var PREV = window.parent !== window && /[?&]nk_preview=1/.test(location.search), draft = {}, MAP = [], busy = false;
+  var FONTS = ['Playfair Display','Cormorant Garamond','DM Serif Display','Lora','Fraunces','Inter','DM Sans','Manrope','Poppins','Nunito Sans'];
+  function q(s){ try { return document.querySelector(s); } catch(e){ return null; } }
+  function qa(s){ try { return Array.prototype.slice.call(document.querySelectorAll(s)); } catch(e){ return []; } }
+  function post(m){ try { window.parent.postMessage(m, '*'); } catch(e){} }
+  function content(){ var c = {}, o = {}, k; try { if(window.NikoraSite) c = window.NikoraSite.get() || {}; } catch(e){} for(k in c) o[k] = c[k]; for(k in draft) o[k] = draft[k]; return o; }
+  function setTitle(el, v){
+    el.textContent = '';
+    String(v).split(/\r?\n/).forEach(function(line, i){
+      if(i) el.appendChild(document.createElement('br'));
+      line.split(/(\*[^*]+\*)/).forEach(function(s){ if(!s) return;
+        if(s.length > 2 && s.charAt(0) === '*' && s.charAt(s.length - 1) === '*'){ var sp = document.createElement('span'); sp.className = 'accent'; sp.textContent = s.slice(1, -1); el.appendChild(sp); }
+        else el.appendChild(document.createTextNode(s)); });
+    });
+  }
+  function hex(v){ return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v || '') ? v : ''; }
+  function rgb(h){ h = h.slice(1); if(h.length === 3) h = h.replace(/./g, '$&$&'); return parseInt(h.slice(0,2),16) + ',' + parseInt(h.slice(2,4),16) + ',' + parseInt(h.slice(4,6),16); }
+  function applyTheme(c){
+    var hf = FONTS.indexOf(c.theme_heading_font) >= 0 ? c.theme_heading_font : '', bf = FONTS.indexOf(c.theme_body_font) >= 0 ? c.theme_body_font : '',
+        ac = hex(c.theme_accent), rd = /^\d{1,3}$/.test(String(c.theme_radius == null ? '' : c.theme_radius)) ? String(c.theme_radius) : '', css = '';
+    if(ac) css += ':root,:root[data-theme]{--gold:' + ac + ';--gold-rgb:' + rgb(ac) + ';--nkn-gold:' + ac + ';}';
+    if(hf) css += 'h1,h2,h3,.hero-title,.section-head h2{font-family:"' + hf + '",Georgia,serif!important}';
+    if(bf) css += 'body,button,input,select,textarea{font-family:"' + bf + '",system-ui,sans-serif}';
+    if(rd !== '') css += '.btn-primary,.btn-ghost,.add-to-cart{border-radius:' + rd + 'px!important}';
+    var st = q('#nk-theme'); if(!st){ st = document.createElement('style'); st.id = 'nk-theme'; document.head.appendChild(st); }
+    if(st.textContent !== css) st.textContent = css;
+    var need = [hf, bf].filter(function(f, i, a){ return f && a.indexOf(f) === i; }), lk = q('#nk-theme-fonts');
+    if(need.length){
+      var href = 'https://fonts.googleapis.com/css2?' + need.map(function(f){ return 'family=' + f.replace(/ /g, '+') + (f === 'DM Serif Display' ? '' : ':wght@400;600'); }).join('&') + '&display=swap';
+      if(!lk){ lk = document.createElement('link'); lk.id = 'nk-theme-fonts'; lk.rel = 'stylesheet'; document.head.appendChild(lk); } if(lk.getAttribute('href') !== href) lk.setAttribute('href', href);
+    } else if(lk) lk.remove();
+  }
+  function navText(a){ var t = a.querySelector('span') || a; return t.children.length ? null : t; }
+  function applyNav(list){
+    if(!Array.isArray(list)) return;
+    list.forEach(function(it){ if(!it || !it.href) return;
+      qa('.nkn-header a[href], .nkn-drawer a[href]').forEach(function(a){
+        if(a.getAttribute('href') !== it.href) return;
+        var host = a.closest('li') || a, t = navText(a); host.style.display = it.hidden ? 'none' : '';
+        if(t){ if(t.dataset.nkO == null) t.dataset.nkO = t.textContent; var want = (!it.hidden && it.label) ? it.label : t.dataset.nkO; if(t.textContent !== want) t.textContent = want; }
+      }); });
+  }
+  function secEls(){ return qa('main > section, body > section').filter(function(s){ return !/nkn-/.test(s.className + ' ' + s.id); }); }
+  function secKey(s, i){ return s.id || ('section-' + (i + 1)); }
+  function applyText(el, v){ if(!el) return; if(el.dataset.nkO == null) el.dataset.nkO = el.innerHTML;
+    if(v){ if(el.dataset.nkT !== v){ setTitle(el, v); el.dataset.nkT = v; } } else if(el.dataset.nkT){ el.innerHTML = el.dataset.nkO; delete el.dataset.nkT; } }
+  function applySections(list){
+    if(!Array.isArray(list) || !/\/(index(\.html)?)?$/.test(location.pathname)) return;
+    var els = secEls();
+    list.forEach(function(it){ els.forEach(function(s, i){
+      if(secKey(s, i) !== it.key) return; s.style.display = it.hidden ? 'none' : '';
+      if(s.querySelector('#hero-title')) return;
+      applyText(s.querySelector('h2, h1'), it.title); applyText(s.querySelector('.section-head p, p'), it.subtitle);
+    }); });
+  }
+  function annLive(){
+    var c = content(), on = c.announcement_enabled !== false && !!c.announcement_text, el = q('#nkn-announce');
+    if(!el){ if(!on) return; el = document.createElement('div'); el.id = 'nkn-announce'; el.className = 'nkn-announce'; el.innerHTML = '<p class="nkn-announce-text"></p>'; document.body.insertBefore(el, document.body.firstChild); }
+    el.hidden = !on;
+    var tx = el.querySelector('.nkn-announce-text'); if(tx) tx.textContent = c.announcement_text || ''; else qa('#nkn-announce .nkn-marq-track > *').forEach(function(n){ n.textContent = c.announcement_text || ''; });
+    el.style.background = hex(c.announcement_bg); el.style.color = hex(c.announcement_color);
+  }
+  var LIVE = {
+    hero_title: function(v){ var e = q('#hero-title'); if(e && v) setTitle(e, v); },
+    hero_subtitle: function(v){ var e = q('#hero-sub'); if(e && v) e.textContent = v; },
+    hero_primary_btn_text: function(v){ var e = q('#hero-cta-primary-text'); if(e && v) e.textContent = v; },
+    hero_secondary_btn_text: function(v){ var e = q('#hero-cta-secondary-text'); if(e && v) e.textContent = v; },
+    hero_image_url: function(v){ var e = q('#hero-image'); if(e && /^https:\/\//i.test(v)) e.src = v; },
+    footer_copyright: function(v){ var e = q('.nkn-f-bottom span'); if(e && v) e.textContent = v; }
+  };
+  function applyAll(){
+    if(busy) return; busy = true;
+    try { var c = content(); applyTheme(c); applyNav(c.header_nav); applySections(c.home_sections); } catch(e){}
+    busy = false;
+  }
+  function scan(){
+    var seen = {}, nav = [];
+    qa('.nkn-header a.nkn-d-link[href], .nkn-header nav a[href]').forEach(function(a){ var h = a.getAttribute('href'), t = navText(a);
+      if(!h || seen[h] || !t) return; seen[h] = 1; nav.push({ href: h, label: (t.dataset.nkO != null ? t.dataset.nkO : t.textContent).trim() }); });
+    var secs = secEls().map(function(s, i){ var h = s.querySelector('h2, h1'), ho = h && h.dataset.nkO != null ? h.dataset.nkO : (h ? h.innerHTML : '');
+      var d = document.createElement('div'); d.innerHTML = ho; return { key: secKey(s, i), title: (d.textContent || '').trim().slice(0, 80), hero: !!s.querySelector('#hero-title'), hidden: s.style.display === 'none' }; });
+    return { type: 'nk:scan', path: location.pathname, nav: nav, sections: secs };
+  }
+  function hit(t){
+    for(var i = 0; i < MAP.length; i++){
+      var m = MAP[i], el = null, key = '';
+      if(m[0] === 'SECTION'){ var all = secEls(); for(var j = 0; j < all.length; j++) if(all[j].contains(t)){ el = all[j]; key = secKey(el, j); } }
+      else if(t.closest) { try { el = t.closest(m[0]); } catch(e){} }
+      if(el){ var a = el.closest && el.closest('a'); return { el: el, pane: m[1], field: m[2], label: m[3] || m[2], key: key, href: a ? a.getAttribute('href') : '' }; }
+    }
+    return null;
+  }
+  function arm(){
+    var st = document.createElement('style');
+    st.textContent = '.nk-h{outline:2px solid #C89B54!important;outline-offset:2px!important;cursor:pointer!important}.nk-sel{outline:2px solid #5fbf8f!important;outline-offset:2px!important}#nk-tip{position:fixed;z-index:2147483647;background:#C89B54;color:#17120a;font:600 11px/1 Inter,system-ui,sans-serif;padding:5px 8px;border-radius:6px;pointer-events:none;letter-spacing:.04em}';
+    document.head.appendChild(st);
+    var tip = document.createElement('div'); tip.id = 'nk-tip'; tip.style.display = 'none'; document.body.appendChild(tip); var cur = null;
+    document.addEventListener('mouseover', function(e){
+      var h = hit(e.target); if(cur) cur.classList.remove('nk-h'); cur = h ? h.el : null;
+      if(cur){ cur.classList.add('nk-h'); var r = cur.getBoundingClientRect(); tip.textContent = h.label; tip.style.display = 'block'; tip.style.left = Math.max(4, r.left) + 'px'; tip.style.top = Math.max(4, r.top - 24) + 'px'; } else tip.style.display = 'none';
+    }, true);
+    document.addEventListener('click', function(e){
+      var h = hit(e.target), a = e.target.closest && e.target.closest('a[href]');
+      if(h){ e.preventDefault(); e.stopPropagation(); qa('.nk-sel').forEach(function(n){ n.classList.remove('nk-sel'); }); h.el.classList.add('nk-sel'); post({ type: 'nk:edit', pane: h.pane, field: h.field, key: h.key, href: h.href }); return; }
+      if(a){ e.preventDefault(); e.stopPropagation(); post({ type: 'nk:go', href: a.getAttribute('href') }); }
+    }, true);
+    document.addEventListener('submit', function(e){ e.preventDefault(); }, true);
+    window.addEventListener('message', function(e){
+      if(e.source !== window.parent) return; var m = e.data; if(!m || typeof m !== 'object' || String(m.type).indexOf('nk:') !== 0) return;
+      if(m.type === 'nk:init'){ MAP = m.map || []; draft = m.draft || {}; applyAll(); annLive(); setTimeout(function(){ post(scan()); }, 150); }
+      else if(m.type === 'nk:field'){ draft[m.key] = m.value; if(LIVE[m.key]) LIVE[m.key](m.value); if(/^announcement_/.test(m.key)) annLive(); if(/^theme_/.test(m.key)) applyAll(); }
+      else if(m.type === 'nk:nav'){ draft.header_nav = m.value; applyAll(); }
+      else if(m.type === 'nk:sections'){ draft.home_sections = m.value; applyAll(); }
+      else if(m.type === 'nk:scan'){ post(scan()); }
+    });
+    post({ type: 'nk:ready' });
+  }
+  /* real visitors: apply saved settings, and keep them applied when nav.js re-renders the header */
+  var tries = 0, iv = setInterval(function(){
+    if(window.NikoraSite || ++tries > 50){ clearInterval(iv); try { if(window.NikoraSite && window.NikoraSite.onChange) window.NikoraSite.onChange(applyAll); } catch(e){} applyAll(); }
+  }, 100);
+  var t0; try { new MutationObserver(function(){ clearTimeout(t0); t0 = setTimeout(applyAll, 250); }).observe(document.documentElement, { childList: true, subtree: true }); } catch(e){}
+  if(PREV){ if(document.body) arm(); else document.addEventListener('DOMContentLoaded', arm); }
+};
+  nkConnector();
 })();
