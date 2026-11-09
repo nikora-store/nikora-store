@@ -1,6 +1,8 @@
 /**
  * bestsellers.js - shared by index.html and catalog.html so both pages rank, badge and show galleries identically.
  * Data comes from GET /api/catalog (a read-only view of lib/products.js) for names, prices, descriptions and bestseller ranks.
+ * If that endpoint is missing (404), failing or not JSON, the Firebase Realtime Database REST API (/products.json) is used instead, and the failure is
+ * remembered for 30 minutes per browser session so the missing endpoint is requested at most once. Set window.NK_CATALOG_API = false to skip it entirely.
  * PHOTOS come ONLY from Firebase /products (the product's own images[]). lib/products.js images are never used: a product with no
  * images (or a photo that fails to load) shows the branded NIKORA placeholder below.
  * Load with a plain <script src="bestsellers.js"></script> before the page's main script.
@@ -8,6 +10,9 @@
 (function (root) {
   'use strict';
   var ENDPOINT = '/api/catalog';
+  var FIREBASE_URL = String(root.NK_FIREBASE_URL || 'https://nikora-store-default-rtdb.firebaseio.com').replace(/\/+$/, '');   // REST fallback when /api/catalog is unavailable
+  var API_DOWN_KEY = 'nk_catalog_api_down', API_DOWN_MS = 30 * 60 * 1000;   // after one failure, skip the endpoint for 30 min (no repeated 404s)
+  var LEGACY_NAMES = ['NIKORA RED Light & EMS Facial Wand 4-in-1', '3D EMS Gua Sha Sculptor', 'Hydro-Vacuum Pore Cleaner', 'LED Therapy Mask 7-in-1 Pro', 'EMS Body Sculptor RF', 'Sonic Eye Massager', 'Ultrasonic Skin Scrubber', 'Thermal Neck & Face Massager', 'Cryo Ice Roller', 'RF Anti-Aging Device', 'NIKORA Ultimate Glow Ritual Set (Full Gadget Bundle)'];
   var TOP_RATED_MIN = 4.5;          // "TOP RATED" only shows for a REAL rating at or above this
   var BUNDLE_CATEGORY = 'Bundles & Sets';
   var SERVER_FIELDS = ['name', 'category', 'price', 'desc', 'oldPrice', 'bestseller', 'bestsellerRank', 'bestsellerLabel', 'rating', 'salesCount'];
@@ -20,17 +25,106 @@
   }
   function num(v) { if (v == null || v === '') return null; var n = Number(v); return isFinite(n) ? n : null; }
 
-  /** Promise<product[]>. Resolves [] (never rejects) when the endpoint is unreachable. */
+  /** BADGE FIX: one place that reads EVERY field a bestseller can be marked with.
+   *  bestseller / isBestseller (admin panel writes both), bestsellerRank, bestsellerLabel and the catalog.json `flag` text
+   *  ("Bestseller", "Bestseller #3", "Bestseller #2 Bundle"). Before, only `bestseller === true` counted, so a product carrying just
+   *  `flag` or `isBestseller` showed its badge from local data and lost it the moment the async Firebase / API sync replaced the record.
+   *  Returns { is, rank, label, flag }. */
+  function flagInfo(p) {
+    var out = { is: false, rank: null, label: null, flag: null };
+    if (!p || typeof p !== 'object') return out;
+    var flag = typeof p.flag === 'string' ? p.flag.trim() : '';
+    var fromFlag = /bestseller/i.test(flag);
+    out.is = p.bestseller === true || p.isBestseller === true || fromFlag;
+    out.flag = flag || null;
+    out.rank = num(p.bestsellerRank);
+    if (out.rank === null && fromFlag) { var m = /#\s*(\d+)/.exec(flag); if (m) out.rank = Number(m[1]); }
+    out.label = p.bestsellerLabel ? String(p.bestsellerLabel) : null;
+    if (!out.label && fromFlag) { var rest = flag.replace(/^\s*bestseller\s*/i, '').trim(); if (rest) out.label = rest; }
+    if (!out.is) { out.rank = null; out.label = null; }
+    return out;
+  }
+  /** Shallow copy of p with bestseller / bestsellerRank / bestsellerLabel / flag normalised from every source field. Never drops a field. */
+  function stampFlags(p) {
+    if (!p || typeof p !== 'object') return p;
+    var o = {}, k, f = flagInfo(p);
+    for (k in p) if (Object.prototype.hasOwnProperty.call(p, k)) o[k] = p[k];
+    o.bestseller = f.is; o.bestsellerRank = f.rank; o.bestsellerLabel = f.label;
+    if (f.flag) o.flag = f.flag;
+    return o;
+  }
+
+  function apiSkipped() {
+    if (root.NK_CATALOG_API === false || (root.location && root.location.protocol === 'file:')) return true;
+    try { var t = Number(root.sessionStorage.getItem(API_DOWN_KEY)); return !!t && Date.now() - t < API_DOWN_MS; } catch (e) { return false; }
+  }
+  function markApiDown() { try { root.sessionStorage.setItem(API_DOWN_KEY, String(Date.now())); } catch (e) {} }
+
+  /** GET url -> parsed JSON. Rejects on HTTP errors and on non-JSON answers (a static host may answer a missing /api route with an HTML page). */
+  function fetchJson(url) {
+    return fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var ct = (r.headers && r.headers.get && r.headers.get('content-type')) || '';
+      if (ct && ct.indexOf('json') === -1) throw new Error('not JSON (' + ct + ')');
+      return r.json();
+    });
+  }
+
+  /** 1st choice: /api/catalog (lib/products.js + live prices + real sales ranking). */
+  function loadFromApi() {
+    if (apiSkipped()) return Promise.reject(new Error('catalog API skipped'));
+    /* no-store + a changing query string: neither the browser nor a CDN may hand back an old copy of the catalog */
+    return fetchJson(ENDPOINT + '?_=' + Date.now()).then(function (d) {
+      if (!d || !Array.isArray(d.products)) throw new Error('unexpected /api/catalog answer');
+      if (!d.products.length) { var e = new Error('/api/catalog returned no products'); e.keepApi = true; throw e; }
+      return d;
+    }, function (err) { markApiDown(); throw err; });
+  }
+
+  /** Firebase /products record -> the same public shape /api/catalog returns (explicit fields only, legacy / deleted / unpriced records dropped).
+   *  Bestsellers without a stored bestsellerRank are ranked after the ranked ones, by id. */
+  function fromFirebase(obj) {
+    var out = [], maxRank = 0;
+    Object.keys(obj || {}).forEach(function (k) {
+      var p = obj[k];
+      if (!p || typeof p !== 'object' || p._deleted) return;
+      var price = num(p.price);
+      if (!p.name || price === null || !(price > 0) || LEGACY_NAMES.indexOf(String(p.name)) !== -1) return;
+      var orig = num(p.originalPrice != null ? p.originalPrice : p.oldPrice);
+      var promo = p.promoEnabled !== false && orig !== null && orig > price;
+      var fi = flagInfo(p), rank = fi.rank;
+      if (rank !== null && rank > maxRank) maxRank = rank;
+      out.push({ id: p.id != null ? p.id : k, name: String(p.name), category: p.category || '', price: price, desc: p.desc || '', oldPrice: promo ? orig : null,
+        bestseller: fi.is, bestsellerRank: rank, bestsellerLabel: fi.label, flag: fi.flag, rating: num(p.rating), salesCount: num(p.salesCount) });
+    });
+    out.filter(function (p) { return p.bestseller && p.bestsellerRank === null; })
+      .sort(function (a, b) { return (Number(a.id) || 0) - (Number(b.id) || 0); })
+      .forEach(function (p) { p.bestsellerRank = ++maxRank; });
+    return out;
+  }
+
+  /** 2nd choice: the Realtime Database over plain REST (the storefront already reads /products from the same database). */
+  function loadFromFirebase() {
+    return fetchJson(FIREBASE_URL + '/products.json').then(function (obj) {
+      var list = fromFirebase(obj);
+      if (!list.length) throw new Error('Firebase REST returned no products');
+      return { source: 'firebase', products: list };
+    });
+  }
+
+  /** Promise<product[]>. Resolves [] (never rejects) when neither source is reachable; the page then keeps using its own data. */
   function load() {
     if (serverList) return Promise.resolve(serverList);
     if (pending) return pending;
     if (typeof fetch !== 'function') return Promise.resolve([]);
-    /* no-store + a changing query string: neither the browser nor a CDN may hand back an old copy of the catalog */
-    pending = fetch(ENDPOINT + '?_=' + Date.now(), { headers: { Accept: 'application/json' }, cache: 'no-store' })
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    pending = loadFromApi()
+      .catch(function (err) {
+        if (root.console && console.info) console.info('Bestsellers: /api/catalog unavailable (' + (err && err.message) + '), reading Firebase REST instead.');
+        return loadFromFirebase();
+      })
       .then(function (d) {
-        serverList = (d && Array.isArray(d.products)) ? d.products : [];
-        rankingSource = (d && d.source) || null;
+        serverList = d.products;
+        rankingSource = d.source || null;
         if (rankingSource === 'fallback' && root.console && console.info) console.info('Bestsellers: no store sales logged yet, showing the initial ranking from lib/products.js.');
         pending = null; return serverList;
       })
@@ -62,15 +156,62 @@
     var o = {}, k, live = hasLivePrice(p);
     for (k in p) if (Object.prototype.hasOwnProperty.call(p, k)) o[k] = p[k];
     SERVER_FIELDS.forEach(function (f) { if (live && (f === 'price' || f === 'oldPrice')) return; o[f] = s[f]; });
-    var own = ownImages(p);
-    o.images = own; o.img = own[0] || '';          /* Firebase photos only; empty means the placeholder is shown */
+    /* BESTSELLER FIX: a product the admin flagged in Firebase (bestseller: true) stays a bestseller even when the server ranking
+       (real sales / the built-in fallback table) does not list it. The server can ADD bestsellers; it can no longer silently erase the admin's own. */
+    /* BADGE FIX: the two sources are OR-merged, never replaced. The server ranking (real sales) wins the rank / label when it knows the product as a
+       bestseller; the product's own flag (Firebase / catalog.json: bestseller, isBestseller or `flag`) survives whenever the server does not list it. */
+    var own = flagInfo(p), srv = flagInfo(s);
+    if (srv.is) {
+      o.bestseller = true;
+      o.bestsellerRank = srv.rank !== null ? srv.rank : own.rank;
+      o.bestsellerLabel = srv.label || own.label;
+    } else if (own.is) {
+      o.bestseller = true;
+      o.bestsellerRank = own.rank;
+      o.bestsellerLabel = own.label;
+      o._bestsellerManual = true;
+    } else { o.bestseller = false; o.bestsellerRank = null; o.bestsellerLabel = null; }
+    if (own.flag) o.flag = own.flag; else if (srv.flag) o.flag = srv.flag;
+    var mine = ownImages(p);
+    o.images = mine; o.img = mine[0] || '';          /* Firebase photos only; empty means the placeholder is shown */
     return o;
+  }
+
+  /** Admin-flagged bestsellers that the server ranking does not know get a rank AFTER the server-ranked ones (admin rank, then id), so the order is
+   *  always 1, 2, 3 ... with no duplicate ranks. Mutates and returns the list. */
+  function rankManualBestsellers(list) {
+    var max = 0, manual = [];
+    list.forEach(function (p) {
+      if (!p || !p.bestseller) return;
+      if (p._bestsellerManual) manual.push(p);
+      else { var r = num(p.bestsellerRank); if (r !== null && r > max) max = r; }
+    });
+    manual.sort(function (a, b) {
+      var ra = num(a.bestsellerRank), rb = num(b.bestsellerRank);
+      if (ra === null) ra = Infinity;
+      if (rb === null) rb = Infinity;
+      return (ra - rb) || (Number(a.id) - Number(b.id)) || 0;
+    });
+    /* BADGE FIX: an admin / catalog rank is kept when no server-ranked product already holds it (so the flagged "Bestseller #1" stays #1);
+       only colliding or missing ranks are appended after the highest used rank. */
+    var used = {};
+    list.forEach(function (p) { if (p && p.bestseller && !p._bestsellerManual) { var r = num(p.bestsellerRank); if (r !== null) used[r] = true; } });
+    manual.forEach(function (p) {
+      var r = num(p.bestsellerRank);
+      if (r === null || used[r]) { while (used[++max]) {} r = max; }
+      used[r] = true; if (r > max) max = r;
+      p.bestsellerRank = r; delete p._bestsellerManual;
+    });
+    return list;
   }
 
   /** Overlays lib/products.js data onto a storefront list. Server wins for name, category, price, images and all rank fields;
    *  Firebase keeps desc / oldPrice / lowStock. Products missing from lib/products.js lose their bestseller flag. No-op until load() succeeded. */
   function apply(list) {
     list = Array.isArray(list) ? list : [];
+    /* BADGE FIX: normalise the flags BEFORE the server answer arrives, so the very first render (local cache / Firebase) already carries
+       bestseller / bestsellerRank / bestsellerLabel / flag and the later re-render with /api/catalog data keeps the same values. */
+    list = list.map(stampFlags);
     if (!serverList || !serverList.length) return list;
     var byId = {}, seen = {}, k;
     serverList.forEach(function (s) { byId[String(s.id)] = s; });
@@ -78,7 +219,17 @@
       if (!p) return p;
       var s = byId[String(p.id)], o = {};
       for (k in p) if (Object.prototype.hasOwnProperty.call(p, k)) o[k] = p[k];
-      if (!s) { o.bestseller = false; o.bestsellerRank = null; o.bestsellerLabel = null; return o; }
+      if (!s) {
+        /* BESTSELLER FIX: a product that exists only in Firebase (added from the admin panel, so not in lib/products.js) used to lose its
+           bestseller flag here. It now keeps the flag the admin set; rankManualBestsellers() below orders it after the server-ranked ones. */
+        var fi = flagInfo(p);
+        o.bestseller = fi.is;
+        o.bestsellerRank = fi.rank;
+        o.bestsellerLabel = fi.label;
+        if (fi.flag) o.flag = fi.flag;
+        if (o.bestseller) o._bestsellerManual = true;
+        return o;
+      }
       seen[String(p.id)] = true;
       return overlayRecord(p, s);
     });
@@ -89,17 +240,19 @@
       o.images = []; o.img = '';                   /* never carry lib/products.js photos into the storefront */
       out.push(o);
     });
-    return out;
+    return rankManualBestsellers(out);
   }
 
   /** One product with lib/products.js data laid over it (name, category, price, was-price, description, images, rank fields).
    *  Used by product.html so the detail page shows exactly what the home page and catalog show. Returns the same object until load() has succeeded. */
   function overlayOne(p) {
-    if (!p || !serverList || !serverList.length) return p;
+    if (!p) return p;
+    if (!serverList || !serverList.length) return stampFlags(p);
     var s = get(p.id), o = {}, k;
-    if (s) return overlayRecord(p, s);
+    if (s) { o = overlayRecord(p, s); delete o._bestsellerManual; return o; }
     for (k in p) if (Object.prototype.hasOwnProperty.call(p, k)) o[k] = p[k];
-    o.bestseller = false; o.bestsellerRank = null; o.bestsellerLabel = null;
+    var fi = flagInfo(p);                                       /* admin-only product: keep the admin's own flag */
+    o.bestseller = fi.is; o.bestsellerRank = fi.rank; o.bestsellerLabel = fi.label; if (fi.flag) o.flag = fi.flag;
     return o;
   }
 
@@ -133,10 +286,10 @@
 
   /** Badge texts for a product, e.g. ['BESTSELLER', 'TOP BUNDLE']. TOP RATED needs a real rating, so it stays hidden while rating is null. */
   function badges(p) {
-    var out = [];
-    if (p.bestseller) {
+    var out = [], fi = flagInfo(p);
+    if (fi.is) {
       out.push('BESTSELLER');
-      if (p.bestsellerLabel && !/bestseller/i.test(p.bestsellerLabel)) out.push(String(p.bestsellerLabel).toUpperCase());
+      if (fi.label && !/bestseller/i.test(fi.label)) out.push(String(fi.label).toUpperCase());     /* e.g. '#3', '#2 BUNDLE', 'TRENDING' */
     }
     var r = num(p.rating);
     if (r !== null && r >= TOP_RATED_MIN) out.push('TOP RATED');
@@ -227,6 +380,7 @@
   }
 
   var api = { stockOf: stockOf, placeholder: PLACEHOLDER, imgFail: imgFail, source: function () { return rankingSource; }, ownImages: ownImages, overlayOne: overlayOne, bundles: bundles, load: load, get: get, thumbUrl: thumbUrl, apply: apply, compare: compare, ranked: ranked, badges: badges, imagesOf: imagesOf, thumbsHtml: thumbsHtml, bindGallery: bindGallery, esc: esc };
+  api.flagInfo = flagInfo; api.stampFlags = stampFlags;
   root.NKBestsellers = api;
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; api._setServerList = function (l) { serverList = l; }; }
 })(typeof window !== 'undefined' ? window : this);
