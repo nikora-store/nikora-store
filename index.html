@@ -757,6 +757,7 @@ footer.site{border-top:1px solid var(--line); padding:60px 0 30px; margin-top:20
 }
 </style>
 <script src="shipping-rules.js?v=20261108"></script>
+<script src="cart-recs.js?v=20261109"></script>
 </head>
 <body>
 <script src="nav.js?v=20261108"></script>
@@ -995,7 +996,7 @@ footer.site{border-top:1px solid var(--line); padding:60px 0 30px; margin-top:20
   <div class="cart-recs-section" id="cart-recs-section">
     <div class="cart-recs-head">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9M14 17H5M17 3l3 4-3 4M7 21l-3-4 3-4"/></svg>
-      Frequently Bought Together
+      <span id="cart-recs-title">Trending K-Beauty Best Sellers</span>
     </div>
     <div class="cart-recs-grid" id="cart-recs-grid"></div>
   </div>
@@ -1140,16 +1141,29 @@ var NK_ICONS = {
 
 /* Fallback pool so the recommendations strip is NEVER empty (used until Firebase '/products' answers, or if it fails/is empty). */
 var NK_FALLBACK = [
-  { id:'1', name:'COSRX Advanced Snail 96 Mucin Power Essence', price:25.00, category:'Essences', img:'https://images.unsplash.com/photo-1556228722-d119f018d480?w=400' },
-  { id:'2', name:'Anua Heartleaf 77% Soothing Toner 250ml', price:22.00, category:'Toners', img:'https://images.unsplash.com/photo-1608248597261-83325b6ba584?w=400' },
-  { id:'3', name:'Beauty of Joseon Relief Sun: Rice + Probiotics SPF50+', price:18.00, category:'Sun Care', img:'https://images.unsplash.com/photo-1567928254714-3a216c5b969d?w=400' },
-  { id:'4', name:'Skin1004 Madagascar Centella Ampoule 100ml', price:24.00, category:'Serums & Ampoules', img:'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400' },
-  { id:'5', name:'Laneige Lip Sleeping Mask Berry', price:24.00, category:'Lip Care', img:'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?w=400' },
-  { id:'6', name:'Biodance Bio-Collagen Real Deep Mask Set', price:19.00, category:'Masks', img:'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=400' },
-  { id:'7', name:'Round Lab Birch Juice Moisturizing Cream 80ml', price:28.00, category:'Moisturizers', img:'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?w=400' },
-  { id:'8', name:'NIKORA Electroporation & LED Skin Booster Wand', price:129.00, category:'Facial Wand', img:'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=400' },
-  { id:'9', name:'NIKORA Cryo-Cooling Ice Globe Sculptor', price:39.00, category:'Cooling Therapy', img:'https://images.unsplash.com/photo-1512290900673-10705a3962d3?w=400' },
-  { id:'10', name:'The NIKORA x K-Beauty Glass Skin Ritual Set', price:159.00, category:'Bundles & Sets', img:'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400' }
+  { id:'1', name:"COSRX Advanced Snail 96 Mucin Power Essence", brand:"COSRX", price:25.00, category:"Essences", img:'https://images.unsplash.com/photo-1556228722-d119f018d480?w=400', flag:"Bestseller #3", bestseller:true, bestsellerRank:3 },
+  { id:'2', name:"Anua Heartleaf 77% Soothing Toner 250ml", brand:"Anua", price:22.00, category:"Toners", img:'https://images.unsplash.com/photo-1608248597261-83325b6ba584?w=400' },
+  { id:'3', name:"Beauty of Joseon Relief Sun: Rice + Probiotics SPF50+", brand:"Beauty of Joseon", price:18.00, category:"Sun Care", img:'https://images.unsplash.com/photo-1567928254714-3a216c5b969d?w=400', flag:"Bestseller #4", bestseller:true, bestsellerRank:4 },
+  { id:'4', name:"Skin1004 Madagascar Centella Ampoule 100ml", brand:"Skin1004", price:24.00, category:"Serums & Ampoules", img:'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400' },
+  { id:'5', name:"Laneige Lip Sleeping Mask Berry", brand:"Laneige", price:24.00, category:"Lip Care", img:'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?w=400' },
+  { id:'6', name:"Biodance Bio-Collagen Real Deep Mask Set", brand:"Biodance", price:19.00, category:"Masks", img:'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=400' },
+  { id:'7', name:"Round Lab Birch Juice Moisturizing Cream 80ml", brand:"Round Lab", price:28.00, category:"Moisturizers", img:'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?w=400' },
+  { id:'8', name:"NIKORA Electroporation & LED Skin Booster Wand", brand:"NIKORA Beauty Tech", price:129.00, category:"Facial Wand", img:'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=400', flag:"Bestseller #1", bestseller:true, bestsellerRank:1 },
+  { id:'9', name:"NIKORA Cryo-Cooling Ice Globe Sculptor", brand:"NIKORA Beauty Tech", price:39.00, category:"Cooling Therapy", img:'https://images.unsplash.com/photo-1512290900673-10705a3962d3?w=400' },
+  { id:'10', name:"The NIKORA x K-Beauty Glass Skin Ritual Set", brand:"NIKORA Bundles", price:159.00, category:"Bundles & Sets", img:'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400', flag:"Bestseller #2 Bundle", bestseller:true, bestsellerRank:2 },
+  { id:'11', name:"Medicube Glutathione Glow Serum 50ml", brand:"Medicube", price:32.00, category:"Serums & Ampoules", img:'' },
+  { id:'12', name:"Torriden DIVE-IN Low Molecule Hyaluronic Acid Serum 50ml", brand:"Torriden", price:23.00, category:"Serums & Ampoules", img:'' },
+  { id:'13', name:"Mixsoon Bean Essence 50ml", brand:"Mixsoon", price:28.00, category:"Essences", img:'', flag:"Bestseller", bestseller:true, bestsellerRank:null },
+  { id:'14', name:"Numbuzin No.3 Skin Softening Serum 50ml", brand:"Numbuzin", price:26.00, category:"Serums & Ampoules", img:'' },
+  { id:'15', name:"I'm From Rice Toner 150ml", brand:"I'm From", price:27.00, category:"Toners", img:'' },
+  { id:'16', name:"Medicube Zero Pore Pad 2.0 (70 pads)", brand:"Medicube", price:24.00, category:"Toners & Pads", img:'' },
+  { id:'17', name:"Kahi Wrinkle Bounce Multi Balm 9g", brand:"Kahi", price:29.00, category:"Special Care", img:'' },
+  { id:'18', name:"MEDIHEAL Madecassoside Trace Toner Pad (100 Pads)", brand:"MEDIHEAL", price:24.00, category:"Toners & Pads", img:'', flag:"Bestseller", bestseller:true, bestsellerRank:null },
+  { id:'19', name:"d'Alba White Truffle First Spray Serum 100ml", brand:"d'Alba", price:28.00, category:"Serums & Mists", img:'', flag:"Bestseller", bestseller:true, bestsellerRank:null },
+  { id:'20', name:"VT Cosmetics Reedle Shot 100 Micro-Needling Booster 50ml", brand:"VT Cosmetics", price:34.00, category:"Beauty Tech & Serums", img:'', flag:"Bestseller", bestseller:true, bestsellerRank:null },
+  { id:'21', name:"Anua Niacinamide 10% + TXA 4% Dark Spot Correcting Serum 30ml", brand:"Anua", price:22.00, category:"Serums & Ampoules", img:'' },
+  { id:'22', name:"Medicube Collagen Night Wrapping Peel-Off Mask 75ml", brand:"Medicube", price:21.00, category:"Masks", img:'' },
+  { id:'23', name:"TIRTIR Mask Fit Red Cushion Foundation (Full Range)", brand:"TIRTIR", price:25.00, category:"Makeup & Complexion", img:'' }
 ];
 
 function nkEsc(str){
@@ -1165,7 +1179,8 @@ function nkNormalize(p, key){
   var price = Number(p.price);
   if(!name || !(price > 0)) return null;
   var img = (Array.isArray(p.images) && p.images[0]) || p.img || p.imgUrl || '';
-  return { id: String(p.id != null ? p.id : key), name: String(name), price: price, img: String(img || ''), category: p.category || '' };
+  return { id: String(p.id != null ? p.id : key), name: String(name), price: price, img: String(img || ''), category: p.category || '',
+    flag: typeof p.flag === 'string' ? p.flag : null, bestseller: p.bestseller === true || p.isBestseller === true, bestsellerRank: p.bestsellerRank != null ? p.bestsellerRank : null };   /* flags kept for the trending / best-seller picks in cart-recs.js */
 }
 function nkListFromObject(obj){
   var out = [];
@@ -1341,18 +1356,19 @@ function renderCartRecs(cart){
   var grid = document.getElementById('cart-recs-grid');
   if(!section || !grid) return;
 
-  var excluded = {};
-  cart.forEach(function(c){ excluded[String(c.id)] = true; });
   var current = (typeof CURRENT_PRODUCT !== 'undefined' && CURRENT_PRODUCT) ? CURRENT_PRODUCT : null;
-  if(current) excluded[String(current.id)] = true;               /* product page: skip the item being viewed */
-
   var pool = NK_PRODUCTS.length ? NK_PRODUCTS : NK_FALLBACK;
-  var candidates = pool.filter(function(p){ return !excluded[p.id]; });
-  if(current && current.category){
-    candidates = candidates.filter(function(p){ return p.category === current.category; })
-      .concat(candidates.filter(function(p){ return p.category !== current.category; }));
+  /* cart-recs.js: empty bag -> "Trending K-Beauty Best Sellers"; items in the bag -> compatible cross-sells (category rules, see RULES there) */
+  var rec;
+  if(window.NKCartRecs){
+    rec = NKCartRecs.select({ cart: cart, pool: pool, current: current, max: NK_MAX_RECS });
+    NKCartRecs.setTitle(rec.title);
+  } else {                                                       /* cart-recs.js missing: plain pool minus what is already in the bag */
+    var inBag = {}; cart.forEach(function(c){ inBag[String(c.id)] = true; });
+    if(current) inBag[String(current.id)] = true;
+    rec = { picks: pool.filter(function(p){ return !inBag[String(p.id)]; }).slice(0, NK_MAX_RECS) };
   }
-  var picks = candidates.slice(0, NK_MAX_RECS);
+  var picks = rec.picks;
 
   section.style.display = 'block';                               /* the recommendations section is NEVER hidden */
   if(!picks.length){
