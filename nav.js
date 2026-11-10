@@ -1348,12 +1348,16 @@
  *   header_nav [{href,label,hidden}]                                  -> header / mobile menu link labels + visibility
  *   home_sections [{key,hidden,title,subtitle}]                       -> homepage section visibility / headings
  * Re-applies on every NikoraSite change and whenever the header re-renders. With ?nk_preview=1 inside the admin
- * iframe it also enables click-to-edit. Keep in sync with nkConnector() in the admin file.
+ * iframe it also enables click-to-edit (works across ports / domains: the admin talks to it with postMessage only).
+ * The iframe is recognised by ?nk_preview=1 OR by its window name "nkPreviewFrame". Keep in sync with nkConnector() in the admin file.
  * ====================================================================== */
 (function () {
 var nkConnector = function(){
   if(window.__nkConn) return; window.__nkConn = true;
-  var PREV = window.parent !== window && /[?&]nk_preview=1/.test(location.search), draft = {}, MAP = [], busy = false;
+  var FRAMED = false; try { FRAMED = window.parent !== window; } catch(e){ FRAMED = true; }
+  /* the admin names its preview iframe "nkPreviewFrame": that name survives redirects (clean URLs strip ?nk_preview=1) and other ports / domains */
+  if(FRAMED && /[?&]nk_preview=1/.test(location.search)){ try { window.name = 'nkPreviewFrame'; } catch(e){} }
+  var PREV = FRAMED && (/[?&]nk_preview=1/.test(location.search) || window.name === 'nkPreviewFrame'), draft = {}, MAP = [], busy = false;
   var FONTS = ['Playfair Display','Cormorant Garamond','DM Serif Display','Lora','Fraunces','Inter','DM Sans','Manrope','Poppins','Nunito Sans'];
   function q(s){ try { return document.querySelector(s); } catch(e){ return null; } }
   function qa(s){ try { return Array.prototype.slice.call(document.querySelectorAll(s)); } catch(e){ return []; } }
@@ -1462,7 +1466,8 @@ var nkConnector = function(){
     document.addEventListener('submit', function(e){ e.preventDefault(); }, true);
     window.addEventListener('message', function(e){
       if(e.source !== window.parent) return; var m = e.data; if(!m || typeof m !== 'object' || String(m.type).indexOf('nk:') !== 0) return;
-      if(m.type === 'nk:init'){ MAP = m.map || []; draft = m.draft || {}; applyAll(); annLive(); setTimeout(function(){ post(scan()); }, 150); }
+      if(m.type === 'nk:ping'){ post({ type: 'nk:ready' }); }
+      else if(m.type === 'nk:init'){ MAP = m.map || []; draft = m.draft || {}; applyAll(); annLive(); setTimeout(function(){ post(scan()); }, 150); setTimeout(function(){ post(scan()); }, 1500); }
       else if(m.type === 'nk:field'){ draft[m.key] = m.value; if(LIVE[m.key]) LIVE[m.key](m.value); if(/^announcement_/.test(m.key)) annLive(); if(/^theme_/.test(m.key)) applyAll(); }
       else if(m.type === 'nk:nav'){ draft.header_nav = m.value; applyAll(); }
       else if(m.type === 'nk:sections'){ draft.home_sections = m.value; applyAll(); }
