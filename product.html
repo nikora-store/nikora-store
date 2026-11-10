@@ -793,7 +793,7 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
 .rf-star-picker button.filled svg{fill:var(--gold); stroke:var(--gold);}
 .cutoff-bar svg, .urgency-bar svg{stroke:currentColor; fill:none;}
 </style>
-<script src="shipping-rules.js?v=20261108"></script>
+<script src="shipping-rules.js?v=20261110"></script>
 <script src="cart-recs.js?v=20261109"></script>
 <script src="review-media.js"></script>
 </head>
@@ -857,7 +857,7 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
 
         <div class="cutoff-bar">
           <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"><circle cx="12" cy="13" r="7"/><path d="M12 10v3l2 2M9 3h6"/></svg>
-          <span id="ship-est">Delivered Korea (Suite A03231, Busan Hub) &middot; 2&ndash;4 days processing + 5&ndash;10 days international express &middot; Free Express shipping on orders of $50.00+ ($4.99 flat rate below)</span>
+          <span id="ship-est">International Express: 5&ndash;10 business days (2&ndash;4 days processing) &middot; Free Express shipping on orders of $50.00+ ($4.99 flat rate below)</span>
         </div>
 
         <div class="urgency-bar" id="urgency-bar">
@@ -921,7 +921,7 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
         </button>
         <div class="accordion-panel">
           <div class="accordion-panel-inner" id="panel-shipping">
-            <p>Ships from our Busan Hub (Delivered Korea) with 2–4 days processing and 5–10 business days international express delivery (FedEx, DHL, K-Packet). Express shipping is FREE on orders of $50.00+, otherwise a $4.99 flat rate per order.</p>
+            <p>Ships from our Busan Hub (Delivered Korea): International Express: 5–10 business days (2–4 days processing) (FedEx, DHL, K-Packet). Express shipping is FREE on orders of $50.00+, otherwise a $4.99 flat rate per order.</p>
             <p>Visible lifting results usually appear within 30–45 days of consistent daily use. Our 30-Day Money-Back Guarantee covers unopened and unused items in original packaging upon arrival.</p>
             <p>Customers are responsible for return shipping costs for change-of-mind returns. Defective, damaged or lost orders are covered by a free reshipment or a full refund.</p>
           </div>
@@ -1313,7 +1313,7 @@ var BULLETS_FIRST_MAP = {
   "Moisturizers": "Cushiony moisture that feels comfortable all day",
   "Bundles & Sets": "A complete routine at a bundle price"
 };
-function isDevice(p){ return /^NIKORA Tech$/i.test(p.brand || '') || p.category === 'Facial Wand' || p.category === 'Cooling Therapy'; }
+function isDevice(p){ return /^NIKORA (Beauty )?Tech$/i.test(p.brand || '') || p.category === 'Facial Wand' || p.category === 'Cooling Therapy' || p.category === 'Beauty Tech & Masks' || p.shipFrom === 'us'; }
 function getSubtitle(p){ return p.subtitle || SUBTITLE_MAP[p.category] || "Smart beauty and K-Beauty skincare for a ritual that fits real mornings."; }
 function getBullets(p){
   if(Array.isArray(p.bullets) && p.bullets.length) return p.bullets;
@@ -1372,7 +1372,7 @@ var HOWTO_BY_CATEGORY = {
   "Bundles & Sets": ['Follow the layering order in the Routine Recommendation on the catalog page.', 'Morning: essence, ampoule, then sunscreen.', 'Evening: essence, ampoule, Booster Wand (see its manual), then moisturizer; use the mask as directed on its pack.', 'Introduce one new product at a time.']
 };
 var DEFAULT_SHIPPING = [
-  'Ships from our Busan Hub (Delivered Korea) with 2–4 days processing and 5–10 business days international express delivery (FedEx, DHL, K-Packet). Express shipping is FREE on orders of $50.00+, otherwise a $4.99 flat rate per order.',
+  'Ships from our Busan Hub (Delivered Korea): International Express: 5–10 business days (2–4 days processing) (FedEx, DHL, K-Packet). Express shipping is FREE on orders of $50.00+, otherwise a $4.99 flat rate per order.',
   'Visible lifting results usually appear within 30–45 days of consistent daily use. Our 30-Day Money-Back Guarantee covers unopened and unused items in original packaging upon arrival.',
   'Customers are responsible for return shipping costs for change-of-mind returns. Defective, damaged or lost orders are covered by a free reshipment or a full refund.'
 ];
@@ -1385,7 +1385,7 @@ var SKINCARE_SHIPPING = [
 function getShipping(p){
   if(Array.isArray(p.shipping) && p.shipping.length) return p.shipping;
   var base = (isDevice(p) ? DEFAULT_SHIPPING : SKINCARE_SHIPPING).slice();
-  var own = window.NKShipping && NKShipping.productLine(p.id);   /* supplier-specific estimate for this product */
+  var own = window.NKShipping && NKShipping.productLine(p);   /* supplier-specific estimate for this product */
   if(own) base[0] = own;
   return base;
 }
@@ -1583,7 +1583,7 @@ function renderProduct(){
     urgencyText.textContent = 'Only ' + stockCount + ' left in stock — order soon!';
   } else {
     urgencyBar.classList.add('instock');
-    urgencyText.textContent = 'In stock (' + stockCount + ' available), processed in 2–4 business days.';
+    urgencyText.textContent = 'In stock (' + stockCount + ' available), processed in ' + (window.NKShipping ? NKShipping.processText(p) : '2–4 business days') + '.';
   }
 
   /* admin rich text (descHtml / howtoHtml, with images placed inside the text) wins; products without it keep the plain-text panels */
@@ -1592,8 +1592,9 @@ function renderProduct(){
   howPanel.innerHTML = richPanelHtml(p.howtoHtml) || ('<ol>' + getHowTo(p).map(function(t){ return '<li>' + escapeHtml(t) + '</li>'; }).join('') + '</ol>');
   watchRichImages(sciPanel); watchRichImages(howPanel);
   document.getElementById('panel-shipping').innerHTML = getShipping(p).map(function(t){ return '<p>' + escapeHtml(t) + '</p>'; }).join('');
-  var shipEl = document.getElementById('ship-est'), shipTxt = window.NKShipping && NKShipping.cardLine(p.id);
-  if(shipEl && shipTxt) shipEl.textContent = shipTxt + ' \u00b7 Delivered Korea (Suite A03231, Busan Hub): 2\u20134 days processing + 5\u201310 days international express \u00b7 FREE Express shipping on orders of $50.00+';
+  if(window.NKShipping && NKShipping.learn) NKShipping.learn([p]);   /* remember this product's shipping group for the cart on other pages */
+  var shipEl = document.getElementById('ship-est'), shipTxt = window.NKShipping && NKShipping.cardLine(p);
+  if(shipEl && shipTxt) shipEl.textContent = shipTxt + ' \u00b7 FREE Express shipping on orders of $50.00+ ($4.99 flat rate below)';
 
   var ctaLabel = soldOut ? 'Sold Out' : 'Add to Cart';
   ['add-to-cart-btn', 'mcta-add-btn'].forEach(function(id){
