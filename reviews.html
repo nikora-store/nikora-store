@@ -302,6 +302,13 @@ footer.site{border-top:1px solid var(--line); padding:60px 0 30px; margin-top:20
 }
 .cart-rec-add svg{width:11px; height:11px; stroke-width:2.6;}
 .cart-rec-add:hover{background:var(--gold); color:#241c0f;}
+.cart-recs-nav{margin-left:auto; display:flex; gap:6px;}
+.cart-recs-nav[hidden]{display:none;}
+.cart-recs-arrow{width:28px; height:28px; border-radius:50%; border:1px solid var(--line); background:var(--card-bg); color:var(--text); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; transition:border-color .2s ease, background .2s ease, color .2s ease, opacity .2s ease;}
+.cart-recs-arrow svg{width:14px; height:14px; stroke:currentColor; stroke-width:2.2;}
+.cart-recs-arrow:hover:not(:disabled){border-color:var(--gold); color:var(--gold);}
+.cart-recs-arrow:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+.cart-recs-arrow:disabled{opacity:.35; cursor:default;}
 .cart-sub-row{display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:10px; color:var(--text-soft);}
 .cart-sub-row strong{color:var(--text); font-size:17px;}
 .cart-checkout{
@@ -508,12 +515,13 @@ h1.rv-title em{font-style:italic; color:var(--gold);}
 .rv-chip:hover{border-color:rgba(var(--gold-rgb),.6); color:var(--text);}
 .rv-chip[aria-pressed="true"]{background:var(--text); color:var(--canvas); border-color:var(--text);}
 .rv-sort{display:flex; align-items:center; gap:10px; font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text-faint);}
-.rv-sort select{
-  appearance:none; -webkit-appearance:none; padding:11px 40px 11px 18px; border-radius:100px; font:inherit; font-size:13px; font-weight:600; letter-spacing:0; text-transform:none;
-  color:var(--text); background:var(--card-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 16px center;
-  border:1px solid var(--line); cursor:pointer;
+.rv-sort select{                       /* fallback only: nav.js swaps this select for the catalog-style rounded dropdown (.nk-dd) */
+  appearance:none; -webkit-appearance:none; padding:11px 18px; border-radius:100px; font:inherit; font-size:13px; font-weight:600; letter-spacing:0; text-transform:none;
+  color:var(--text); background:var(--surface-tint,var(--card-bg)); border:1px solid var(--line); cursor:pointer;
 }
+.rv-sort select option{background:var(--canvas-solid,#14111A); color:var(--text);}
 .rv-sort select:focus{border-color:var(--gold); outline:none;}
+.rv-sort .nk-dd{z-index:20;}
 
 /* ---------------- REVIEW LIST (cards come from reviews-data.js) ---------------- */
 .rv-loading{padding:48px 0; text-align:center; font-size:13.5px; color:var(--text-faint);}
@@ -586,6 +594,16 @@ h1.rv-title em{font-style:italic; color:var(--gold);}
 </head>
 <body>
 <script src="nav.js"></script>
+<script src="cart-recs.js?v=20261109"></script>
+<script>
+/* cart cross-sell: teach cart-recs.js the LED mask category and let every device pair with it (cart-recs.js itself is unchanged) */
+(function(){
+  var R = window.NKCartRecs && window.NKCartRecs.RULES; if(!R) return;
+  var MASK = 'beauty tech & masks';
+  R[MASK] = ['serums & ampoules', 'essences', 'moisturizers', 'cooling therapy', 'facial wand', 'sun care'];
+  ['facial wand', 'cooling therapy', 'serums & ampoules', 'essences', 'moisturizers', 'toners & pads', 'masks'].forEach(function(k){ if(R[k] && R[k].indexOf(MASK) < 0) R[k].push(MASK); });
+})();
+</script>
 
 <main id="top">
 
@@ -627,12 +645,12 @@ h1.rv-title em{font-style:italic; color:var(--gold);}
           <button type="button" class="rv-chip" data-filter="photos" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>With Photos &amp; Video</button>
           <button type="button" class="rv-chip" data-filter="verified" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l7 4v6c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-4z"/><path d="M9 12l2 2 4-4"/></svg>Verified Buyers</button>
         </div>
-        <label class="rv-sort" for="rv-sort">Sort by
-          <select id="rv-sort">
+        <div class="rv-sort">
+          <select id="rv-sort" data-label="Sort by" aria-label="Sort reviews">
             <option value="recent">Most Recent</option>
             <option value="rating">Highest Rated</option>
           </select>
-        </label>
+        </div>
       </div>
       <div id="reviews-container"><div class="rv-loading">Loading reviews&hellip;</div></div>
     </div>
@@ -743,7 +761,11 @@ h1.rv-title em{font-style:italic; color:var(--gold);}
   <div class="cart-recs-section" id="cart-recs-section">
     <div class="cart-recs-head">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9M14 17H5M17 3l3 4-3 4M7 21l-3-4 3-4"/></svg>
-      Frequently Bought Together
+      <span id="cart-recs-title">Trending K-Beauty Best Sellers</span>
+      <div class="cart-recs-nav" id="cart-recs-nav" role="group" aria-label="Browse suggestions" hidden>
+        <button type="button" class="cart-recs-arrow" data-recs-nav="-1" aria-label="Previous suggestions"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <button type="button" class="cart-recs-arrow" data-recs-nav="1" aria-label="Next suggestions"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
     </div>
     <div class="cart-recs-grid" id="cart-recs-grid"></div>
   </div>
@@ -870,14 +892,32 @@ var NK_ICONS = {
 
 /* Fallback pool so the recommendations strip is NEVER empty (used until Firebase '/products' answers, or if it fails/is empty). */
 var NK_FALLBACK = [
-  { id:'1',  name:'NIKORA RED Light & EMS Facial Wand 4-in-1', price:34.99, category:'Facial Wand', img:'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=400' },
-  { id:'2',  name:'3D EMS Gua Sha Sculptor', price:24.99, category:'Sculptors', img:'https://images.unsplash.com/photo-1616394584738-fc6e612e71b9?w=400' },
-  { id:'3',  name:'Hydro-Vacuum Pore Cleaner', price:29.99, category:'Cleansing', img:'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400' },
-  { id:'4',  name:'LED Therapy Mask 7-in-1 Pro', price:49.99, category:'LED Therapy', img:'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=400' },
-  { id:'5',  name:'EMS Body Sculptor RF', price:59.99, category:'Body Care', img:'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?w=400' },
-  { id:'6',  name:'Sonic Eye Massager', price:19.99, category:'Eye Care', img:'https://images.unsplash.com/photo-1608248597261-83325b6ba584?w=400' },
-  { id:'7',  name:'Ultrasonic Skin Scrubber', price:24.99, category:'Cleansing', img:'https://images.unsplash.com/photo-1556228722-d119f018d480?w=400' },
-  { id:'8',  name:'Thermal Neck & Face Massager', price:39.99, category:'Sculptors', img:'https://images.unsplash.com/photo-1567928254714-3a216c5b969d?w=400' }
+  { id:'1', name:"COSRX Advanced Snail 96 Mucin Power Essence", brand:"COSRX", price:25.00, category:"Essences", img:'https://images.unsplash.com/photo-1556228722-d119f018d480?w=400', flag:"Bestseller #3", bestseller:true, bestsellerRank:3 },
+  { id:'2', name:"Anua Heartleaf 77% Soothing Toner 250ml", brand:"Anua", price:22.00, category:"Toners", img:'https://images.unsplash.com/photo-1608248597261-83325b6ba584?w=400' },
+  { id:'3', name:"Beauty of Joseon Relief Sun: Rice + Probiotics SPF50+", brand:"Beauty of Joseon", price:18.00, category:"Sun Care", img:'https://images.unsplash.com/photo-1567928254714-3a216c5b969d?w=400', flag:"Bestseller #4", bestseller:true, bestsellerRank:4 },
+  { id:'4', name:"Skin1004 Madagascar Centella Ampoule 100ml", brand:"Skin1004", price:24.00, category:"Serums & Ampoules", img:'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400' },
+  { id:'5', name:"Laneige Lip Sleeping Mask Berry", brand:"Laneige", price:24.00, category:"Lip Care", img:'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?w=400' },
+  { id:'6', name:"Biodance Bio-Collagen Real Deep Mask Set", brand:"Biodance", price:19.00, category:"Masks", img:'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=400' },
+  { id:'7', name:"Round Lab Birch Juice Moisturizing Cream 80ml", brand:"Round Lab", price:28.00, category:"Moisturizers", img:'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?w=400' },
+  { id:'8', name:"NIKORA Electroporation & LED Skin Booster Wand", brand:"NIKORA Beauty Tech", price:129.00, category:"Facial Wand", img:'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=400', flag:"Bestseller #1", bestseller:true, bestsellerRank:1 },
+  { id:'9', name:"NIKORA Cryo-Cooling Ice Globe Sculptor", brand:"NIKORA Beauty Tech", price:39.00, category:"Cooling Therapy", img:'https://images.unsplash.com/photo-1512290900673-10705a3962d3?w=400' },
+  { id:'10', name:"The NIKORA x K-Beauty Glass Skin Ritual Set", brand:"NIKORA Bundles", price:159.00, category:"Bundles & Sets", img:'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400', flag:"Bestseller #2 Bundle", bestseller:true, bestsellerRank:2 },
+  { id:'11', name:"Medicube Glutathione Glow Serum 50ml", brand:"Medicube", price:32.00, category:"Serums & Ampoules", img:'' },
+  { id:'12', name:"Torriden DIVE-IN Low Molecule Hyaluronic Acid Serum 50ml", brand:"Torriden", price:23.00, category:"Serums & Ampoules", img:'' },
+  { id:'13', name:"Mixsoon Bean Essence 50ml", brand:"Mixsoon", price:28.00, category:"Essences", img:'', flag:"Bestseller", bestseller:true, bestsellerRank:null },
+  { id:'14', name:"Numbuzin No.3 Skin Softening Serum 50ml", brand:"Numbuzin", price:26.00, category:"Serums & Ampoules", img:'' },
+  { id:'15', name:"I'm From Rice Toner 150ml", brand:"I'm From", price:27.00, category:"Toners", img:'' },
+  { id:'16', name:"Medicube Zero Pore Pad 2.0 (70 pads)", brand:"Medicube", price:24.00, category:"Toners & Pads", img:'' },
+  { id:'17', name:"Kahi Wrinkle Bounce Multi Balm 9g", brand:"Kahi", price:29.00, category:"Special Care", img:'' },
+  { id:'18', name:"MEDIHEAL Madecassoside Trace Toner Pad (100 Pads)", brand:"MEDIHEAL", price:24.00, category:"Toners & Pads", img:'', flag:"Bestseller", bestseller:true, bestsellerRank:null },
+  { id:'19', name:"d'Alba White Truffle First Spray Serum 100ml", brand:"d'Alba", price:28.00, category:"Serums & Mists", img:'', flag:"Bestseller", bestseller:true, bestsellerRank:null },
+  { id:'20', name:"VT Cosmetics Reedle Shot 100 Micro-Needling Booster 50ml", brand:"VT Cosmetics", price:34.00, category:"Beauty Tech & Serums", img:'', flag:"Bestseller", bestseller:true, bestsellerRank:null },
+  { id:'21', name:"Anua Niacinamide 10% + TXA 4% Dark Spot Correcting Serum 30ml", brand:"Anua", price:22.00, category:"Serums & Ampoules", img:'' },
+  { id:'22', name:"Medicube Collagen Night Wrapping Peel-Off Mask 75ml", brand:"Medicube", price:21.00, category:"Masks", img:'' },
+  { id:'23', name:"TIRTIR Mask Fit Red Cushion Foundation (Full Range)", brand:"TIRTIR", price:25.00, category:"Makeup & Complexion", img:'' },
+  { id:'24', name:"NIKORA Hello Face LED Therapy Mask (Red Light Therapy for Face & Home Travel)", brand:"NIKORA Beauty Tech", price:129.00, category:"Beauty Tech & Masks", img:'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600', flag:"Bestseller", bestseller:true, bestsellerRank:9 },
+  { id:'25', name:"NIKORA Ice Roller Set (Cooling Facial Roller & Massage Tools)", brand:"NIKORA Beauty Tech", price:24.00, category:"Cooling Therapy", img:'https://images.unsplash.com/photo-1512290900673-10705a3962d3?w=600' },
+  { id:'26', name:"NIKORA 4 In 1 Skin Care Massager", brand:"NIKORA Beauty Tech", price:39.00, category:"Facial Wand", img:'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600' }
 ];
 
 function nkEsc(str){
@@ -893,7 +933,8 @@ function nkNormalize(p, key){
   var price = Number(p.price);
   if(!name || !(price > 0)) return null;
   var img = (Array.isArray(p.images) && p.images[0]) || p.img || p.imgUrl || '';
-  return { id: String(p.id != null ? p.id : key), name: String(name), price: price, img: String(img || ''), category: p.category || '' };
+  return { id: String(p.id != null ? p.id : key), name: String(name), brand: p.brand ? String(p.brand) : '', price: price, img: String(img || ''), category: p.category || '',
+    flag: typeof p.flag === 'string' ? p.flag : null, bestseller: p.bestseller === true || p.isBestseller === true, bestsellerRank: p.bestsellerRank != null ? p.bestsellerRank : null };   /* flags kept for the trending / best-seller picks in cart-recs.js */
 }
 function nkListFromObject(obj){
   var out = [];
@@ -1064,26 +1105,61 @@ function nkCarouselBind(){
   }, { passive: true });
 }
 
+/* ---- carousel arrows ( < and > ): page through the suggestions; they wrap around while the strip auto-loops ---- */
+function nkRecsNavUpdate(){
+  var g = document.getElementById('cart-recs-grid'), nav = document.getElementById('cart-recs-nav');
+  if(!g || !nav) return;
+  var overflow = g.scrollWidth > g.clientWidth + 4, looping = g.getAttribute('data-loop') === '1';
+  nav.hidden = !overflow;
+  var btns = nav.querySelectorAll('.cart-recs-arrow');
+  if(btns.length === 2){
+    btns[0].disabled = !looping && g.scrollLeft <= 2;
+    btns[1].disabled = !looping && g.scrollLeft + g.clientWidth >= g.scrollWidth - 2;
+  }
+}
+function nkRecsPage(dir){
+  var g = document.getElementById('cart-recs-grid'); if(!g) return;
+  var card = g.querySelector('.cart-rec-card'), gap = parseFloat(getComputedStyle(g).columnGap) || 12;
+  var w = (card ? card.offsetWidth : 130) + gap, step = Math.max(w, Math.floor(g.clientWidth / w) * w);
+  NK_CAR.resumeAt = Date.now() + 4000;                              /* the shopper is browsing: pause the auto-scroll */
+  var period = nkCarouselPeriod(g);
+  if(period > 0 && dir < 0 && g.scrollLeft < step) g.scrollLeft += period;     /* wrap backwards in the looping strip */
+  if(g.scrollBy) g.scrollBy({ left: dir * step, behavior: NK_REDUCED ? 'auto' : 'smooth' }); else g.scrollLeft += dir * step;
+}
+document.addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('[data-recs-nav]');
+  if(b && !b.disabled){ e.preventDefault(); nkRecsPage(Number(b.getAttribute('data-recs-nav')) || 1); }
+});
+(function(){
+  var g = document.getElementById('cart-recs-grid');
+  if(g) g.addEventListener('scroll', function(){ nkRecsNavUpdate(); }, { passive: true });
+  window.addEventListener('resize', nkRecsNavUpdate);
+})();
+
 function renderCartRecs(cart){
   var section = document.getElementById('cart-recs-section');
   var grid = document.getElementById('cart-recs-grid');
   if(!section || !grid) return;
 
-  var excluded = {};
-  cart.forEach(function(c){ excluded[String(c.id)] = true; });
   var current = (typeof CURRENT_PRODUCT !== 'undefined' && CURRENT_PRODUCT) ? CURRENT_PRODUCT : null;
-  if(current) excluded[String(current.id)] = true;               /* product page: skip the item being viewed */
-
   var pool = NK_PRODUCTS.length ? NK_PRODUCTS : NK_FALLBACK;
-  var candidates = pool.filter(function(p){ return !excluded[p.id]; });
-  if(current && current.category){
-    candidates = candidates.filter(function(p){ return p.category === current.category; })
-      .concat(candidates.filter(function(p){ return p.category !== current.category; }));
+  /* cart-recs.js: empty bag -> "Trending K-Beauty Best Sellers"; items in the bag -> compatible cross-sells (category rules, see RULES there) */
+  var rec;
+  if(window.NKCartRecs){
+    rec = NKCartRecs.select({ cart: cart, pool: pool, current: current, max: NK_MAX_RECS });
+    NKCartRecs.setTitle(rec.title);
+  } else {                                                       /* no cart-recs.js: still switch the heading with the bag state */
+    var tEl = document.getElementById('cart-recs-title'); if(tEl) tEl.textContent = cart.length ? 'You Might Also Like' : 'Trending K-Beauty Best Sellers';
+    rec = { mode: cart.length ? 'contextual' : 'trending' };                                                       /* cart-recs.js missing: plain pool minus what is already in the bag */
+    var inBag = {}; cart.forEach(function(c){ inBag[String(c.id)] = true; });
+    if(current) inBag[String(current.id)] = true;
+    rec.picks = pool.filter(function(p){ return !inBag[String(p.id)]; }).slice(0, NK_MAX_RECS);
   }
-  var picks = candidates.slice(0, NK_MAX_RECS);
+  var picks = rec.picks;
 
   section.style.display = 'block';                               /* the recommendations section is NEVER hidden */
   if(!picks.length){
+    nkRecsNavUpdate();
     grid.removeAttribute('data-loop');
     grid.scrollLeft = 0;
     grid.innerHTML = '<div class="cart-recs-done">You\u2019ve added everything in the collection \u2014 a complete routine.</div>';
@@ -1095,18 +1171,20 @@ function renderCartRecs(cart){
       '<div class="cart-rec-thumb">' + nkThumb(p.img, p.name) + '</div>' +
       '<div class="cart-rec-title">' + nkEsc(p.name) + '</div>' +
       '<div class="cart-rec-price">$' + p.price.toFixed(2) + '</div>' +
-      '<button type="button" class="cart-rec-add" data-action="add-rec" data-id="' + nkEsc(p.id) + '"' + (clone ? ' tabindex="-1"' : '') + ' aria-label="Add ' + nkEsc(p.name) + ' to bag">' + NK_ICONS.plus + 'Add</button>' +
+      '<button type="button" class="cart-rec-add" data-action="add-rec" data-id="' + nkEsc(p.id) + '"' + (clone ? ' tabindex="-1"' : '') + ' aria-label="Add ' + nkEsc(p.name) + ' to bag">' + NK_ICONS.plus + 'Add to Cart</button>' +
     '</div>';
   }
   var first = picks.map(function(p){ return card(p, false); }).join('');
   var viewW = grid.clientWidth || 372;
-  var loops = !NK_REDUCED && picks.length * 142 > viewW;         /* only loop when the strip actually overflows */
+  /* empty bag (trending): endless auto-scrolling strip; items in the bag (targeted cross-sell): a calm strip the shopper pages through with the arrows */
+  var loops = rec.mode !== 'contextual' && !NK_REDUCED && picks.length * 142 > viewW;         /* only loop when the strip actually overflows */
   var prev = grid.scrollLeft;
   grid.innerHTML = loops ? first + picks.map(function(p){ return card(p, true); }).join('') : first;
   if(loops) grid.setAttribute('data-loop', '1'); else grid.removeAttribute('data-loop');
   grid.scrollLeft = loops ? prev : 0;                            /* adding an item must not snap the strip back */
   NK_CAR.pos = grid.scrollLeft;
   nkCarouselStart();
+  nkRecsNavUpdate();
 }
 
 function renderCart(){
