@@ -1451,7 +1451,7 @@ function cleanRich(html){
       }
       if(tag === 'IMG'){
         var s = (n.getAttribute('src') || '').trim();
-        if(!/^https:\/\/\S+$/i.test(s)){ parent.removeChild(n); return; }
+        if(!/^(https?:\/\/[^\s"'<>]+|(?:\.{0,2}\/)?(?!\/)(?![a-z][a-z0-9+.\-]*:)[^\s"'<>\\]+\.(?:png|jpe?g|webp|gif|avif|svg|ico)(?:[?#][^\s"'<>]*)?)$/i.test(s)){ parent.removeChild(n); return; }
         keep.src = s; keep.alt = (n.getAttribute('alt') || '').slice(0, 200); keep.loading = 'lazy';
       }
       if(tag === 'FIGURE'){
@@ -1936,7 +1936,7 @@ function initFirebaseReviewsSync(){
   if(!firebaseReady) return;
   db.ref('reviews/' + PRODUCT_ID).on('value', function(snap){
     var data = snap.val() || {};
-    var arr = Object.keys(data).map(function(key){
+    var arr = Object.keys(data).filter(function(key){ var v = data[key]; return v && typeof v === 'object'; }).map(function(key){
       var r = data[key];
       r.id = key;
       return r;
@@ -1994,7 +1994,7 @@ function initReviewForm(){
 
     videoStep.then(function(videoUrl){
       var photos = rfMedia ? rfMedia.getPhotos() : [], avatar = rfMedia ? rfMedia.getAvatar() : '';
-      var reviewData = { name: name, rating: selectedStarRating, text: text, date: Date.now() };
+      var now = Date.now(), reviewData = { name: name, rating: selectedStarRating, text: text, date: now, createdAt: now, approved: true, status: 'approved' };   /* published instantly: no moderation queue; createdAt keeps it newest-first on reviews.html */
       if(photos.length){ reviewData.photos = photos; reviewData.photo = photos[0]; }   /* `photo` keeps older cached readers working */
       if(avatar) reviewData.avatar = avatar;
       if(videoUrl) reviewData.videos = [videoUrl];
