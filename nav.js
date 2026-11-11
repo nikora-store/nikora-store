@@ -623,7 +623,7 @@
     if (!v || v.indexOf('//') === 0) return '';
     return /^(https:\/\/\S+|mailto:[^\s<>"']+|tel:[+\d][\d\s().-]*|#[\w-]*|\/[^\s]*|[\w\-\/]+\.html(\?[^\s#]*)?(#\S*)?)$/i.test(v) ? v : '';
   }
-  function safeImg(v) { return (typeof v === 'string' && /^https:\/\/\S+$/i.test(v.trim())) ? v.trim() : ''; }
+  function safeImg(v) { return (typeof v === 'string' && /^(https?:\/\/[^\s"'<>]+|(?:\.{0,2}\/)?(?!\/)(?![a-z][a-z0-9+.\-]*:)[^\s"'<>\\]+\.(?:png|jpe?g|webp|gif|avif|svg|ico)(?:[?#][^\s"'<>]*)?)$/i.test(v.trim())) ? v.trim() : ''; }   // direct http(s) links or site paths (/images/a.jpg)
   function siteStr(k, max) { var v = SITE_DATA && SITE_DATA[k]; return (typeof v === 'string' && v.trim()) ? v.trim().slice(0, max || 300) : ''; }
   function validEmail(e) { return /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']{2,}$/.test(e || ''); }
   function siteEmail(first) {                         // 'footer' or 'contact' decides which saved address wins; the other is the fallback
@@ -1353,7 +1353,7 @@
  * ====================================================================== */
 (function () {
 var nkConnector = function(){
-  if(window.__nkConn) return; window.__nkConn = true;
+  if(window.__nkConnV >= 3) return; window.__nkConnV = 3; window.__nkConn = true;
   var FRAMED = false; try { FRAMED = window.parent !== window; } catch(e){ FRAMED = true; }
   /* the admin names its preview iframe "nkPreviewFrame": that name survives redirects (clean URLs strip ?nk_preview=1) and other ports / domains */
   if(FRAMED && /[?&]nk_preview=1/.test(location.search)){ try { window.name = 'nkPreviewFrame'; } catch(e){} }
@@ -1420,13 +1420,31 @@ var nkConnector = function(){
     el.style.background = hex(c.announcement_bg); el.style.color = hex(c.announcement_color);
   }
   var LIVE = {
-    hero_title: function(v){ var e = q('#hero-title'); if(e && v) setTitle(e, v); },
-    hero_subtitle: function(v){ var e = q('#hero-sub'); if(e && v) e.textContent = v; },
-    hero_primary_btn_text: function(v){ var e = q('#hero-cta-primary-text'); if(e && v) e.textContent = v; },
-    hero_secondary_btn_text: function(v){ var e = q('#hero-cta-secondary-text'); if(e && v) e.textContent = v; },
-    hero_image_url: function(v){ var e = q('#hero-image'); if(e && /^https:\/\//i.test(v)) e.src = v; },
-    footer_copyright: function(v){ var e = q('.nkn-f-bottom span'); if(e && v) e.textContent = v; }
+    hero_title: function(v){ applyText(q('#hero-title'), v); },
+    hero_subtitle: function(v){ applyText(q('#hero-sub'), v); },
+    hero_primary_btn_text: function(v){ applyText(q('#hero-cta-primary-text'), v); },
+    hero_secondary_btn_text: function(v){ applyText(q('#hero-cta-secondary-text'), v); },
+    hero_image_url: function(v){ var e = q('#hero-image'); if(!e) return; if(e.dataset.nkS == null) e.dataset.nkS = e.getAttribute('src') || ''; if(!v) e.setAttribute('src', e.dataset.nkS); else if(!/^(javascript|data|vbscript):/i.test(v)) e.src = v; },
+    footer_copyright: function(v){ applyText(q('.nkn-f-bottom span'), v); }
   };
+  /* generic live sync for every other field that has a mapped element (page titles, intro text, contact e-mail / phone, banner images) */
+  function liveText(key, v){
+    MAP.forEach(function(m){
+      if(m[2] !== key || m[0] === 'SECTION') return; var el = q(m[0]); if(!el) return;
+      if(/_image_url$/.test(key)){
+        var im = el.tagName === 'IMG' ? el : el.querySelector('img'); if(!im) return;
+        if(im.dataset.nkS == null) im.dataset.nkS = im.getAttribute('src') || '';
+        if(!v) im.setAttribute('src', im.dataset.nkS); else if(!/^(javascript|data|vbscript):/i.test(v)) im.src = v;
+      } else if(/^(faq|science|contact)_(title|subtitle)$/.test(key)){ applyText(el, v); }
+      else if(/^contact_(email|phone)$/.test(key) && el.tagName === 'A'){
+        if(el.dataset.nkO == null){ el.dataset.nkO = el.textContent; el.dataset.nkH = el.getAttribute('href') || ''; }
+        el.textContent = v || el.dataset.nkO; el.setAttribute('href', v ? (key === 'contact_email' ? 'mailto:' : 'tel:') + v.replace(/\s+/g, '') : el.dataset.nkH);
+      }
+    });
+  }
+  function liveKey(key, v){
+    try { if(LIVE[key]) LIVE[key](v); else liveText(key, v); if(/^announcement_/.test(key)) annLive(); if(/^theme_/.test(key)) applyAll(); } catch(e){}
+  }
   function applyAll(){
     if(busy) return; busy = true;
     try { var c = content(); applyTheme(c); applyNav(c.header_nav); applySections(c.home_sections); } catch(e){}
@@ -1440,40 +1458,59 @@ var nkConnector = function(){
       var d = document.createElement('div'); d.innerHTML = ho; return { key: secKey(s, i), title: (d.textContent || '').trim().slice(0, 80), hero: !!s.querySelector('#hero-title'), hidden: s.style.display === 'none' }; });
     return { type: 'nk:scan', path: location.pathname, nav: nav, sections: secs };
   }
-  function hit(t){
-    for(var i = 0; i < MAP.length; i++){
-      var m = MAP[i], el = null, key = '';
-      if(m[0] === 'SECTION'){ var all = secEls(); for(var j = 0; j < all.length; j++) if(all[j].contains(t)){ el = all[j]; key = secKey(el, j); } }
-      else if(t.closest) { try { el = t.closest(m[0]); } catch(e){} }
-      if(el){ var a = el.closest && el.closest('a'); return { el: el, pane: m[1], field: m[2], label: m[3] || m[2], key: key, href: a ? a.getAttribute('href') : '' }; }
-    }
-    return null;
+  function hit1(t, m){
+    var el = null, key = ''; if(!t || t.nodeType !== 1 || t.id === 'nk-tip') return null;
+    if(m[0] === 'SECTION'){ var all = secEls(); for(var j = 0; j < all.length; j++) if(all[j].contains(t)){ el = all[j]; key = secKey(el, j); } }
+    else { try { el = t.closest(m[0]); } catch(e){} }
+    if(!el) return null; var a = el.closest && el.closest('a');
+    return { el: el, pane: m[1], field: m[2], label: m[3] || m[2], key: key, href: a ? a.getAttribute('href') : '' };
+  }
+  function hit(t){ for(var i = 0; i < MAP.length; i++){ var h = hit1(t, MAP[i]); if(h){ h.idx = i; return h; } } return null; }
+  /* the element under the pointer first; when a transparent overlay (gradient, slider layer) covers it, look through everything stacked at that point */
+  function hitAt(e){
+    var best = hit(e.target);   /* most specific wins: a title under an overlay beats the whole hero the overlay belongs to */
+    try { if(typeof e.clientX === 'number' && document.elementsFromPoint){ var st = document.elementsFromPoint(e.clientX, e.clientY); for(var i = 0; i < st.length; i++){ if(st[i] === e.target) continue; var h = hit(st[i]); if(h && (!best || h.idx < best.idx)) best = h; } } } catch(x){}
+    return best;
   }
   function arm(){
     var st = document.createElement('style');
     st.textContent = '.nk-h{outline:2px solid #C89B54!important;outline-offset:2px!important;cursor:pointer!important}.nk-sel{outline:2px solid #5fbf8f!important;outline-offset:2px!important}#nk-tip{position:fixed;z-index:2147483647;background:#C89B54;color:#17120a;font:600 11px/1 Inter,system-ui,sans-serif;padding:5px 8px;border-radius:6px;pointer-events:none;letter-spacing:.04em}';
     document.head.appendChild(st);
-    var tip = document.createElement('div'); tip.id = 'nk-tip'; tip.style.display = 'none'; document.body.appendChild(tip); var cur = null;
-    document.addEventListener('mouseover', function(e){
-      var h = hit(e.target); if(cur) cur.classList.remove('nk-h'); cur = h ? h.el : null;
+    var tip = document.createElement('div'); tip.id = 'nk-tip'; tip.style.display = 'none'; document.body.appendChild(tip); var cur = null, ON = true, raf = 0, lastEv = null;
+    function clear(){ if(cur) cur.classList.remove('nk-h'); cur = null; tip.style.display = 'none'; }
+    function hover(){
+      raf = 0; if(!ON || !lastEv) return; var h = hitAt(lastEv), el = h ? h.el : null;
+      if(el === cur){ if(cur){ var r0 = cur.getBoundingClientRect(); tip.style.left = Math.max(4, r0.left) + 'px'; tip.style.top = Math.max(4, r0.top - 24) + 'px'; } return; }
+      if(cur) cur.classList.remove('nk-h'); cur = el;
       if(cur){ cur.classList.add('nk-h'); var r = cur.getBoundingClientRect(); tip.textContent = h.label; tip.style.display = 'block'; tip.style.left = Math.max(4, r.left) + 'px'; tip.style.top = Math.max(4, r.top - 24) + 'px'; } else tip.style.display = 'none';
-    }, true);
+    }
+    document.addEventListener('mousemove', function(e){ if(!ON) return; lastEv = { target: e.target, clientX: e.clientX, clientY: e.clientY }; if(!raf) raf = (window.requestAnimationFrame || setTimeout)(hover, 16); }, true);
+    document.addEventListener('mouseleave', clear, true);
     document.addEventListener('click', function(e){
-      var h = hit(e.target), a = e.target.closest && e.target.closest('a[href]');
-      if(h){ e.preventDefault(); e.stopPropagation(); qa('.nk-sel').forEach(function(n){ n.classList.remove('nk-sel'); }); h.el.classList.add('nk-sel'); post({ type: 'nk:edit', pane: h.pane, field: h.field, key: h.key, href: h.href }); return; }
+      var a = e.target.closest && e.target.closest('a[href]');
+      if(!ON){ if(a){ e.preventDefault(); e.stopPropagation(); post({ type: 'nk:go', href: a.getAttribute('href') }); } return; }
+      var h = hitAt(e);
+      if(h){ e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation(); qa('.nk-sel').forEach(function(n){ n.classList.remove('nk-sel'); }); h.el.classList.add('nk-sel'); post({ type: 'nk:edit', pane: h.pane, field: h.field, key: h.key, href: h.href }); return; }
       if(a){ e.preventDefault(); e.stopPropagation(); post({ type: 'nk:go', href: a.getAttribute('href') }); }
     }, true);
     document.addEventListener('submit', function(e){ e.preventDefault(); }, true);
     window.addEventListener('message', function(e){
       if(e.source !== window.parent) return; var m = e.data; if(!m || typeof m !== 'object' || String(m.type).indexOf('nk:') !== 0) return;
-      if(m.type === 'nk:ping'){ post({ type: 'nk:ready' }); }
-      else if(m.type === 'nk:init'){ MAP = m.map || []; draft = m.draft || {}; applyAll(); annLive(); setTimeout(function(){ post(scan()); }, 150); setTimeout(function(){ post(scan()); }, 1500); }
-      else if(m.type === 'nk:field'){ draft[m.key] = m.value; if(LIVE[m.key]) LIVE[m.key](m.value); if(/^announcement_/.test(m.key)) annLive(); if(/^theme_/.test(m.key)) applyAll(); }
+      if(m.type === 'nk:ping'){ post({ type: 'nk:ready', v: 3 }); }
+      else if(m.type === 'nk:init'){
+        MAP = m.map || []; draft = m.draft || {}; ON = m.inspect !== false; if(!ON) clear();
+        applyAll(); annLive(); Object.keys(draft).forEach(function(k){ liveKey(k, draft[k]); });
+        post({ type: 'nk:ack', v: 3, areas: MAP.length });
+        setTimeout(function(){ post(scan()); }, 150); setTimeout(function(){ post(scan()); }, 1500);
+      }
+      else if(m.type === 'nk:mode'){ ON = !!m.on; if(!ON){ clear(); qa('.nk-sel').forEach(function(n){ n.classList.remove('nk-sel'); }); } }
+      else if(m.type === 'nk:field'){ draft[m.key] = m.value; liveKey(m.key, m.value); }
       else if(m.type === 'nk:nav'){ draft.header_nav = m.value; applyAll(); }
       else if(m.type === 'nk:sections'){ draft.home_sections = m.value; applyAll(); }
       else if(m.type === 'nk:scan'){ post(scan()); }
     });
-    post({ type: 'nk:ready' });
+    post({ type: 'nk:ready', v: 3 });
+    window.addEventListener('load', function(){ post({ type: 'nk:ready', v: 3 }); });
   }
   /* real visitors: apply saved settings, and keep them applied when nav.js re-renders the header */
   var tries = 0, iv = setInterval(function(){
