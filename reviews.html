@@ -1637,7 +1637,7 @@ function rvSubmit(e){
 
   videoStep.then(function(videoUrl){
     var createdAt = Date.now();
-    var payload = { name: name, rating: RV_FORM.rating, text: text, createdAt: createdAt, date: new Date(createdAt).toLocaleDateString('en-US') };
+    var payload = { name: name, rating: RV_FORM.rating, text: text, createdAt: createdAt, date: new Date(createdAt).toLocaleDateString('en-US'), approved: true, status: 'approved' };   /* published instantly: no moderation queue */
     var avatar = media ? media.getAvatar() : '', photos = media ? media.getPhotos() : [];
     if(avatar) payload.avatar = avatar;
     if(photos.length) payload.photos = photos;
