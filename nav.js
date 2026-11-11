@@ -1521,3 +1521,177 @@ var nkConnector = function(){
 };
   nkConnector();
 })();
+
+/* ==========================================================================================================
+ * NIKORA dropdown polish (nav.js, every page)
+ * Every native <select> on the store pages (Reviews "Sort by", contact / returns form menus, product page menus ...) is replaced by the same
+ * rounded, gold-bordered, properly padded dropdown the catalog's Sort menu uses, instead of the browser's own popup (white, unpadded, broken in dark mode).
+ * The original <select> stays in the page (visually hidden), so form submission, `required`, .value, and every page script that listens
+ * for `change` keep working unchanged. Opt out with  <select data-nk-native>.  The catalog's own custom sort (.nk-sort) is left alone.
+ * Keyboard: Enter / Space / arrows open and move, Home / End, Esc closes, typing jumps to a matching option.
+ * ========================================================================================================== */
+(function () {
+  'use strict';
+  if (window.__nkDropdowns) return; window.__nkDropdowns = true;
+  var G = 'var(--gold-rgb,200,155,84)';
+  var CSS = [
+    '.nk-dd{position:relative;display:inline-block;flex:none;max-width:100%;vertical-align:middle;--dd-bg:#14111A;--dd-hover:rgba(' + G + ',.14)}',
+    '[data-theme="light"] .nk-dd{--dd-bg:#FFFDF9}',
+    '.nk-dd-btn{display:inline-flex;align-items:center;gap:8px;max-width:100%;padding:10px 14px 10px 16px;border-radius:100px;border:1px solid var(--line,rgba(128,128,128,.3));background:var(--surface-tint,rgba(255,255,255,.06));color:var(--text,inherit);font-family:inherit;font-size:13px;font-weight:500;line-height:1.3;cursor:pointer;text-align:left;transition:border-color .2s ease,background .2s ease,box-shadow .2s ease}',
+    '.nk-dd-btn:hover,.nk-dd.is-open .nk-dd-btn{border-color:rgba(' + G + ',.75)}',
+    '.nk-dd-btn:focus-visible{outline:none;border-color:rgba(' + G + ',.85);box-shadow:0 0 0 3px rgba(' + G + ',.2)}',
+    '.nk-dd.is-open .nk-dd-btn{box-shadow:0 0 0 3px rgba(' + G + ',.14)}',
+    '.nk-dd.is-disabled .nk-dd-btn{opacity:.5;cursor:not-allowed}',
+    '.nk-dd-label{flex:none;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint,#8a8493)}',
+    '.nk-dd-value{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '.nk-dd-chev{width:14px;height:14px;flex:none;stroke:var(--gold,#C89B54);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .25s cubic-bezier(.2,.8,.2,1)}',
+    '.nk-dd.is-open .nk-dd-chev{transform:rotate(180deg)}',
+    '.nk-dd-list{position:absolute;left:0;top:calc(100% + 8px);z-index:2147483000;min-width:100%;width:max-content;max-width:min(320px,86vw);max-height:min(320px,60vh);overflow-y:auto;margin:0;padding:6px;list-style:none;border-radius:16px;outline:none;background:var(--dd-bg);border:1px solid rgba(' + G + ',.45);box-shadow:0 22px 50px -18px rgba(0,0,0,.55);transform-origin:top left;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-6px) scale(.97);transition:opacity .18s ease,transform .22s cubic-bezier(.2,.8,.2,1),visibility 0s linear .22s;scrollbar-width:thin;scrollbar-color:rgba(' + G + ',.5) transparent}',
+    '.nk-dd--right .nk-dd-list{left:auto;right:0;transform-origin:top right}',
+    '.nk-dd--up .nk-dd-list{top:auto;bottom:calc(100% + 8px);transform-origin:bottom left}',
+    '.nk-dd--up.nk-dd--right .nk-dd-list{transform-origin:bottom right}',
+    '.nk-dd.is-open .nk-dd-list{opacity:1;visibility:visible;pointer-events:auto;transform:none;transition-delay:0s}',
+    '.nk-dd-list::-webkit-scrollbar{width:6px}.nk-dd-list::-webkit-scrollbar-thumb{background:rgba(' + G + ',.45);border-radius:100px}',
+    '.nk-dd-opt{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 12px;border-radius:10px;font-size:13px;font-weight:500;color:var(--text-soft,#8a8493);cursor:pointer;white-space:nowrap;transition:background .15s ease,color .15s ease}',
+    '.nk-dd-opt:hover,.nk-dd-opt.is-active{background:var(--dd-hover);color:var(--text,inherit)}',
+    '.nk-dd-opt[aria-selected="true"]{color:var(--gold,#C89B54);font-weight:700}',
+    '.nk-dd-opt[aria-selected="true"]::after{content:"";flex:none;width:5px;height:9px;margin-right:2px;border:solid var(--gold,#C89B54);border-width:0 2px 2px 0;transform:rotate(45deg) translateY(-1px)}',
+    '.nk-dd-opt[aria-disabled="true"]{opacity:.4;cursor:not-allowed}',
+    '.nk-dd-grp{padding:8px 12px 4px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint,#8a8493);cursor:default}',
+    /* menus inside forms behave like the other form fields: full width, softer corners */
+    '.nk-dd--field{display:block;width:100%}',
+    '.nk-dd--field .nk-dd-btn{width:100%;justify-content:space-between;border-radius:12px;padding:12px 14px;font-size:14px}',
+    '.nk-dd--field .nk-dd-list{min-width:100%;max-width:100%;width:100%;white-space:normal}',
+    '.nk-dd--field .nk-dd-opt{white-space:normal}',
+    '.nk-dd-native{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;overflow:hidden!important;margin:0!important;padding:0!important;border:0!important;clip:rect(0 0 0 0)!important}',
+    '@media (max-width:520px){.nk-dd:not(.nk-dd--inline){display:block;width:100%}.nk-dd:not(.nk-dd--inline) .nk-dd-btn{width:100%;justify-content:space-between}.nk-dd-list{left:0;right:0;width:auto;max-width:none}}',
+    '@media (prefers-reduced-motion:reduce){.nk-dd-list,.nk-dd-chev,.nk-dd-btn,.nk-dd-opt{transition-duration:.001ms!important}}'
+  ].join('\n');
+
+  var st = document.createElement('style'); st.setAttribute('data-nk', 'dropdowns'); st.textContent = CSS;
+  (document.head || document.documentElement).appendChild(st);
+
+  var CHEV = '<svg class="nk-dd-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+  var OPEN = null, UID = 0;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function closeAll(except) { var d = document.querySelectorAll('.nk-dd.is-open'); for (var i = 0; i < d.length; i++) if (d[i] !== except) d[i].__nkClose && d[i].__nkClose(); }
+
+  function labelOf(sel, field) {
+    if (field) return '';
+    if (sel.id && document.querySelector('label[for="' + sel.id.replace(/"/g, '\\"') + '"]')) return '';   /* the page already shows a label next to it */
+    var t = sel.getAttribute('data-label') || sel.getAttribute('aria-label') || sel.getAttribute('title') || '';
+    if (!t && /sort/i.test((sel.id || '') + ' ' + (sel.name || ''))) t = 'Sort';
+    t = String(t).replace(/[:*]+\s*$/, '').trim();
+    return t.length <= 18 ? t : '';
+  }
+  function skip(sel) {
+    return !sel || sel.__nkdd || sel.multiple || sel.size > 1 || sel.hidden || sel.hasAttribute('data-nk-native') || sel.classList.contains('nk-sort-native') ||
+      sel.classList.contains('nk-dd-native') || sel.getAttribute('aria-hidden') === 'true' || sel.closest('.nk-sort,.nk-dd,[data-nk-native]');
+  }
+
+  function upgrade(sel) {
+    if (skip(sel)) return;
+    sel.__nkdd = true;
+    var field = !!sel.closest('form,.field,.form-group,.form-row,.form-field,.rf-row'), uid = ++UID;
+    var wrap = document.createElement('div');
+    wrap.className = 'nk-dd' + (field ? ' nk-dd--field' : '');
+    var lab = labelOf(sel, field), listId = 'nk-dd-list-' + uid;
+    wrap.innerHTML = '<button type="button" class="nk-dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="' + listId + '">' +
+      (lab ? '<span class="nk-dd-label">' + esc(lab) + '</span>' : '') + '<span class="nk-dd-value"></span>' + CHEV + '</button>' +
+      '<ul class="nk-dd-list" id="' + listId + '" role="listbox" tabindex="-1"' + (lab || sel.getAttribute('aria-label') ? ' aria-label="' + esc(lab || sel.getAttribute('aria-label')) + '"' : '') + '></ul>';
+    var btn = wrap.firstChild, list = wrap.lastChild, valueEl = btn.querySelector('.nk-dd-value'), items = [], active = -1, typed = '', typedAt = 0;
+    var labelFor = sel.id && document.querySelector('label[for="' + sel.id.replace(/"/g, '\\"') + '"]');
+    if (labelFor) { if (!labelFor.id) labelFor.id = 'nk-dd-lbl-' + uid; list.setAttribute('aria-labelledby', labelFor.id); list.removeAttribute('aria-label'); btn.setAttribute('aria-labelledby', labelFor.id + ' ' + (btn.id = btn.id || 'nk-dd-btn-' + uid)); }
+
+    sel.parentNode.insertBefore(wrap, sel);
+    sel.classList.add('nk-dd-native'); sel.setAttribute('tabindex', '-1'); sel.setAttribute('aria-hidden', 'true');
+    wrap.appendChild(sel);                                    /* the select lives inside the wrapper: required-field validation and form submission still work */
+
+    function build() {
+      var html = '', idx = 0; items = [];
+      Array.prototype.forEach.call(sel.children, function (n) {
+        if (n.tagName === 'OPTGROUP') {
+          html += '<li class="nk-dd-grp" role="presentation">' + esc(n.label) + '</li>';
+          Array.prototype.forEach.call(n.children, function (o) { html += opt(o, n.disabled); });
+        } else if (n.tagName === 'OPTION') html += opt(n, false);
+      });
+      function opt(o, groupOff) {
+        var i = idx++, off = o.disabled || groupOff; items.push({ i: i, o: o, off: off });
+        return '<li class="nk-dd-opt" role="option" id="' + listId + '-' + i + '" data-i="' + i + '"' + (off ? ' aria-disabled="true"' : '') + ' aria-selected="false">' + esc(o.textContent.trim()) + '</li>';
+      }
+      list.innerHTML = html; sync();
+    }
+    function optsEls() { return list.querySelectorAll('.nk-dd-opt'); }
+    function sync() {
+      var cur = sel.selectedIndex, els = optsEls(), o = sel.options[cur];
+      valueEl.textContent = o ? o.textContent.trim() : '';
+      for (var k = 0; k < els.length; k++) els[k].setAttribute('aria-selected', k === cur ? 'true' : 'false');
+      var dis = sel.disabled; wrap.classList.toggle('is-disabled', dis); btn.disabled = dis;
+    }
+    function setActive(n, scroll) {
+      var els = optsEls(); if (!els.length) return;
+      n = Math.max(0, Math.min(els.length - 1, n));
+      for (var k = 0; k < els.length; k++) els[k].classList.toggle('is-active', k === n);
+      active = n; btn.setAttribute('aria-activedescendant', els[n].id);
+      if (scroll !== false) { var e = els[n]; if (e.offsetTop < list.scrollTop) list.scrollTop = e.offsetTop - 6; else if (e.offsetTop + e.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = e.offsetTop + e.offsetHeight - list.clientHeight + 6; }
+    }
+    function step(from, dir) { var n = from; do { n += dir; } while (n >= 0 && n < items.length && items[n].off); return (n < 0 || n >= items.length) ? from : n; }
+    function open() {
+      if (sel.disabled || wrap.classList.contains('is-open')) return;
+      closeAll(wrap); sync();
+      var r = btn.getBoundingClientRect(), below = window.innerHeight - r.bottom, want = Math.min(list.scrollHeight + 16, 320);
+      wrap.classList.toggle('nk-dd--up', below < want && r.top > below);
+      wrap.classList.toggle('nk-dd--right', !wrap.classList.contains('nk-dd--field') && (r.left + r.width / 2) > window.innerWidth / 2 && r.width < 320);
+      wrap.classList.add('is-open'); btn.setAttribute('aria-expanded', 'true'); OPEN = wrap;
+      setActive(sel.selectedIndex < 0 ? 0 : sel.selectedIndex);
+    }
+    function close(focus) {
+      if (!wrap.classList.contains('is-open')) return;
+      wrap.classList.remove('is-open'); btn.setAttribute('aria-expanded', 'false'); btn.removeAttribute('aria-activedescendant'); if (OPEN === wrap) OPEN = null;
+      if (focus) btn.focus();
+    }
+    wrap.__nkClose = close;
+    function choose(n) {
+      if (!items[n] || items[n].off) return;
+      var changed = sel.selectedIndex !== n; sel.selectedIndex = n; sync(); close(true);
+      if (changed) { sel.dispatchEvent(new Event('input', { bubbles: true })); sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    }
+
+    btn.addEventListener('click', function () { wrap.classList.contains('is-open') ? close(true) : open(); });
+    btn.addEventListener('mouseenter', sync);
+    list.addEventListener('mousemove', function (e) { var li = e.target.closest('.nk-dd-opt'); if (li) { var n = +li.getAttribute('data-i'); if (n !== active) setActive(n, false); } });
+    list.addEventListener('click', function (e) { var li = e.target.closest('.nk-dd-opt'); if (li) choose(+li.getAttribute('data-i')); });
+    list.addEventListener('mousedown', function (e) { e.preventDefault(); });         /* keep focus on the button */
+    btn.addEventListener('keydown', function (e) {
+      var k = e.key, isOpen = wrap.classList.contains('is-open');
+      if (k === 'ArrowDown' || k === 'ArrowUp') { e.preventDefault(); if (!isOpen) { open(); return; } setActive(step(active, k === 'ArrowDown' ? 1 : -1)); }
+      else if (k === 'Home' || k === 'End') { if (isOpen) { e.preventDefault(); setActive(k === 'Home' ? step(-1, 1) : step(items.length, -1)); } }
+      else if (k === 'Enter' || k === ' ') { if (isOpen) { e.preventDefault(); choose(active); } else if (k === ' ') { /* the click that follows opens it */ } }
+      else if (k === 'Escape') { if (isOpen) { e.preventDefault(); e.stopPropagation(); close(true); } }
+      else if (k === 'Tab') { close(false); }
+      else if (k.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {                 /* type-ahead */
+        var now = Date.now(); typed = (now - typedAt > 700 ? '' : typed) + k.toLowerCase(); typedAt = now;
+        for (var j = 0; j < items.length; j++) { var n = (active + 1 + j) % items.length; if (!items[n].off && items[n].o.textContent.trim().toLowerCase().indexOf(typed) === 0) { if (!isOpen) open(); setActive(n); break; } }
+      }
+    });
+    sel.addEventListener('change', sync);
+    try { new MutationObserver(function () { build(); }).observe(sel, { childList: true, subtree: true, attributes: true, attributeFilter: ['selected', 'disabled', 'label'] }); } catch (e) {}
+    if (sel.form && !sel.form.__nkddReset) { sel.form.__nkddReset = true; sel.form.addEventListener('reset', function () { setTimeout(function () { var s = sel.form.querySelectorAll('select'); for (var i = 0; i < s.length; i++) s[i].dispatchEvent(new Event('change')); }, 0); }); }
+    build();
+  }
+
+  document.addEventListener('pointerdown', function (e) { if (OPEN && !OPEN.contains(e.target)) OPEN.__nkClose(false); }, true);
+  window.addEventListener('resize', function () { if (OPEN) OPEN.__nkClose(false); });
+  window.addEventListener('blur', function () { if (OPEN) OPEN.__nkClose(false); });
+
+  function scan(root) {
+    var list = (root || document).querySelectorAll ? (root || document).querySelectorAll('select') : [];
+    for (var i = 0; i < list.length; i++) { try { upgrade(list[i]); } catch (e) { if (window.console) console.warn('NIKORA dropdown: kept the native select', e); } }
+  }
+  function start() {
+    scan(document);
+    var t; try { new MutationObserver(function (m) { clearTimeout(t); t = setTimeout(function () { scan(document); }, 60); }).observe(document.body, { childList: true, subtree: true }); } catch (e) {}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+  window.NikoraDropdowns = { scan: scan };
+})();
