@@ -5,7 +5,7 @@
  *              The amount compared is the payable subtotal after any promo discount, before tax.
  *
  *   Two fulfilment groups (split shipping):
- *     'us'  US Hardware & Devices (wands, rollers, sculptors, LED face masks) fulfilled from a United States warehouse (US to US).
+ *     'us'  US Hardware & Devices (wands, rollers, sculptors, massagers, LED face masks) fulfilled from a United States warehouse (US to US), supplied by QKsource (SPUs are kept in lib/products.js).
  *           "US Express Shipping: 3-7 business days (1-3 days processing)"
  *     'dk'  K-Beauty skincare, delivered through Delivered Korea (Suite A03231, Busan Hub, South Korea).
  *           "International Express: 5-10 business days (2-4 days processing)"
@@ -20,18 +20,18 @@
   'use strict';
   var FREE_AT = 50, FLAT = 4.99;
   var SUPPLIERS = {
-    us: { name: 'US Warehouse', what: 'hardware & devices', hub: 'United States Warehouse', origin: 'United States (US to US fulfillment)', process: [1, 3], transit: [3, 7], carriers: 'US express carriers' },
+    us: { name: 'US Warehouse', source: 'QKsource', what: 'hardware & devices', hub: 'United States Warehouse', origin: 'United States (US to US fulfillment)', process: [1, 3], transit: [3, 7], carriers: 'US express carriers' },
     dk: { name: 'Delivered Korea', what: 'K-Beauty skincare', hub: 'Suite A03231, Busan Hub', origin: 'Busan, South Korea', process: [2, 4], transit: [5, 10], carriers: 'FedEx, DHL or K-Packet' }
   };
   var ORDER = ['us', 'dk'];
   /* Known ids (legacy numeric ids and slugs). Anything not listed is classified by shipFrom / category / brand / name, then defaults to 'dk'. */
   var MAP = { '1': ['dk'], '2': ['dk'], '3': ['dk'], '4': ['dk'], '5': ['dk'], '6': ['dk'], '7': ['dk'],
-    '8': ['us'], '9': ['us'], '10': ['us', 'dk'],
+    '8': ['us'], '9': ['us'], '10': ['us', 'dk'], '25': ['us'], '26': ['us'],
     '11': ['dk'], '12': ['dk'], '13': ['dk'], '14': ['dk'], '15': ['dk'], '16': ['dk'], '17': ['dk'], '18': ['dk'], '19': ['dk'], '20': ['dk'], '21': ['dk'], '22': ['dk'], '23': ['dk'],
     '24': ['us'],
-    'nikora-booster-wand': ['us'], 'nikora-cryo-globe': ['us'], 'nikora-glass-skin-bundle': ['us', 'dk'], 'nikora-hello-face-led-mask': ['us'] };
-  var US_CATEGORY = /^(facial wand|cooling therapy|beauty tech( & masks)?|beauty-tech|led masks?|microcurrent devices?|wands?|rollers?|sculptors?|devices?)$/i;
-  var US_NAME = /\bLED\b.*\bmask\b|\b(wand|roller|sculptor|ice globe|microcurrent)\b/i;
+    'nikora-booster-wand': ['us'], 'nikora-cryo-globe': ['us'], 'nikora-glass-skin-bundle': ['us', 'dk'], 'nikora-hello-face-led-mask': ['us'], 'nikora-ice-roller-set': ['us'], 'nikora-4in1-skin-massager': ['us'] };
+  var US_CATEGORY = /^(facial wand|cooling therapy|beauty tech( & masks)?|beauty-tech|led masks?|microcurrent devices?|wands?|rollers?|ice rollers?|massagers?|skin massagers?|sculptors?|devices?)$/i;
+  var US_NAME = /\bLED\b.*\bmask\b|\b(wand|roller|sculptor|ice globe|microcurrent|massager)\b/i;
   var LS = 'nk_ship_groups';
 
   function money(n) { return '$' + Number(n).toFixed(2); }
