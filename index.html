@@ -2177,7 +2177,7 @@ window.submitReview = function() {
   if (!(rating >= 1 && rating <= 5)) { showToast('Please choose a star rating.'); return; }
   if (revPhotoBusy) { showToast('Your photo is still processing - one moment.'); return; }
 
-  var reviewData = { name: name, rating: rating, text: text, date: new Date().toLocaleDateString(), createdAt: Date.now() };
+  var reviewData = { name: name, rating: rating, text: text, date: new Date().toLocaleDateString(), createdAt: Date.now(), approved: true, status: 'approved' };   /* published instantly: no moderation queue */
   if (pendingReviewPhoto) reviewData.photo = pendingReviewPhoto;
 
   function saveLocal(){
