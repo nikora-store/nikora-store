@@ -85,8 +85,9 @@
     r.country = typeof raw.country === 'string' ? raw.country.trim().slice(0, 40) : '';
 
     var ct = Number(raw.createdAt);
-    if (!(ct > 0)) { var p = Date.parse(raw.date); ct = isNaN(p) ? 0 : p; }
+    if (!(ct > 0)) { var p = (typeof raw.date === 'number' && raw.date > 0) ? raw.date : Date.parse(raw.date); ct = isNaN(p) ? 0 : p; }   /* product-page reviews store a numeric date: without this they were dated 1970 and sorted to the very bottom */
     r.createdAt = ct;
+    r.approved = true; r.status = 'approved';                                          /* no moderation queue: every stored review is published */
 
     var list = [];
     function add(v) { var s = safeUrl(v); if (s && list.indexOf(s) === -1) list.push(s); }
@@ -159,6 +160,7 @@
     var c = {}; Object.keys(src).forEach(function (k) { c[k] = src[k]; });
     c.id = makeId();
     c.verified = trusted ? src.verified === true : false;
+    c.approved = true; c.status = 'approved';                                           /* published instantly */
     if (!(Number(c.createdAt) > 0)) c.createdAt = Date.now();
     if (!c.date) c.date = new Date(c.createdAt).toLocaleDateString('en-US');
     if (typeof c.name !== 'string' || !c.name.trim()) throw new Error('addReview: "name" is required.');
