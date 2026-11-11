@@ -128,18 +128,17 @@ button{font-family:inherit;cursor:pointer;}
 .breadcrumb .current{color:var(--text); font-weight:600;}
 
 /* ---------------- PRODUCT HERO ---------------- */
-/* Gallery | Key Benefits card | Buy box — the benefits card sits directly to the right of the photo gallery */
-.product-hero{display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,.72fr) minmax(0,1fr); gap:28px; align-items:start; padding:20px 0 20px;}
-@media (max-width:1179px){
-  .product-hero{grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr); gap:24px;}
-  .product-hero .product-info{grid-column:1 / -1; max-width:760px;}
-}
-@media (max-width:719px){
-  .product-hero{grid-template-columns:minmax(0,1fr); gap:22px;}
+/* Gallery (large, left) | Buy box (right). Key Benefits now sits in its own strip below the purchase section. */
+.product-hero{display:grid; grid-template-columns:minmax(0,1.55fr) minmax(0,1fr); gap:clamp(28px,4vw,56px); align-items:start; padding:20px 0 28px;}
+.gallery-col{position:sticky; top:96px; min-width:0;}                       /* stays in view while the buy box scrolls on desktop */
+@media (max-width:1023px){
+  .product-hero{grid-template-columns:minmax(0,1fr); gap:24px;}
+  .gallery-col{position:static;}
+  .product-hero .product-info{max-width:760px;}
 }
 
 .gallery-main{
-  position:relative; aspect-ratio:1/1; border-radius:20px; overflow:hidden;
+  position:relative; aspect-ratio:1/1; border-radius:24px; overflow:hidden; width:100%;
   background:var(--surface-tint); border:1px solid var(--card-border); box-shadow:var(--shadow-ambient);
 }
 .gallery-main{touch-action:pan-y; -webkit-user-select:none; user-select:none;}   /* vertical page scroll still works; horizontal drags become swipes */
@@ -161,12 +160,12 @@ button{font-family:inherit;cursor:pointer;}
 .badge-lowstock{background:#e11d48; color:#fff; animation:badgeFlash 1.2s ease-in-out infinite;}
 /* Gallery thumbnails: one per image, a single scrollable row (swipe / drag / scroll on phones) */
 .gallery-thumbs{
-  position:relative; display:flex; flex-wrap:nowrap; gap:10px; margin-top:14px; padding:3px 2px;
+  position:relative; display:flex; flex-wrap:nowrap; gap:12px; margin-top:16px; padding:4px 2px 6px;
   overflow-x:auto; overflow-y:hidden; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch;
   overscroll-behavior-x:contain; scrollbar-width:thin;
 }
 .gallery-thumb{
-  flex:0 0 auto; scroll-snap-align:start; width:76px; height:76px; padding:0; border-radius:12px; overflow:hidden;
+  flex:0 0 auto; scroll-snap-align:start; width:88px; height:88px; padding:0; border-radius:14px; overflow:hidden;
   border:2px solid transparent; cursor:pointer; opacity:.65; background:var(--surface-tint);
   transition:opacity .2s ease, border-color .2s ease, transform .2s ease;
 }
@@ -174,7 +173,7 @@ button{font-family:inherit;cursor:pointer;}
 .gallery-thumb:hover{opacity:1;}
 .gallery-thumb.active{opacity:1; border-color:var(--gold, #C89B54);}
 .gallery-thumb:focus-visible{outline:2px solid var(--gold, #C89B54); outline-offset:2px; opacity:1;}
-@media (max-width:719px){ .gallery-thumb{width:64px; height:64px;} }
+@media (max-width:719px){ .gallery-thumb{width:68px; height:68px; border-radius:12px;} .gallery-thumbs{gap:10px;} }
 
 /* ---------------- PRODUCT INFO / BUY BOX ---------------- */
 .product-info{padding-top:4px;}
@@ -199,29 +198,43 @@ button{font-family:inherit;cursor:pointer;}
 .p-price-old{font-size:16px; text-decoration:line-through; opacity:.5; color:var(--text-soft);}
 .p-save-badge{background:var(--rose); color:#fff; font-size:11px; font-weight:700; padding:5px 10px; border-radius:100px; letter-spacing:.02em;}
 
-/* Key Benefits card (right of the gallery) */
-.benefits-card{
-  position:relative; align-self:start; background:var(--card-bg); border:1px solid var(--card-border);
-  border-radius:20px; padding:22px 20px 8px; box-shadow:var(--shadow-ambient); backdrop-filter:blur(14px);
-}
-.benefits-card::before{
-  content:""; position:absolute; left:20px; right:20px; top:0; height:2px; border-radius:0 0 2px 2px;
-  background:linear-gradient(90deg,var(--gold),transparent);
-}
-.benefits-title{display:flex; align-items:center; gap:8px; font-family:'Playfair Display',serif; font-size:17px; font-weight:500; margin:0 0 4px;}
-.benefits-title svg{width:15px; height:15px; fill:var(--gold); flex-shrink:0;}
-.benefit-bullets{list-style:none; margin:0; padding:0;}
+/* Key Benefits: three premium feature cards below the purchase section */
+.benefits-strip{margin:6px 0 30px; padding:0; background:none; border:0; border-radius:0; position:relative;}
+.benefits-strip[hidden]{display:none;}
+.benefits-strip::before{display:none;}
+.benefits-head{display:flex; align-items:center; gap:14px; margin:0 0 16px;}
+.benefits-head::after{content:""; flex:1; height:1px; background:linear-gradient(90deg,rgba(var(--gold-rgb),.5),transparent);}
+.benefits-eyebrow{display:block; font-size:10.5px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--gold); margin-bottom:4px;}
+.benefits-title{display:block; font-family:'Playfair Display',serif; font-size:clamp(22px,2.4vw,28px); font-weight:500; line-height:1.2; margin:0; letter-spacing:.005em;}
+.benefits-title em{font-style:italic; color:var(--gold);}
+.benefit-bullets{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; counter-reset:benefit;}
+.benefit-bullets:empty{display:none;}
 .benefit-bullets li{
-  display:flex; align-items:flex-start; gap:12px; padding:13px 0; font-size:13.5px; font-weight:600;
-  line-height:1.45; color:var(--text); border-bottom:1px solid var(--line);
+  position:relative; display:flex; flex-direction:column; align-items:flex-start; gap:14px; min-height:132px; padding:22px 22px 20px;
+  border-radius:20px; overflow:hidden; counter-increment:benefit;
+  background:linear-gradient(155deg,rgba(var(--gold-rgb),.13),rgba(var(--gold-rgb),.04) 62%), var(--card-bg);
+  border:1px solid rgba(var(--gold-rgb),.32); box-shadow:0 10px 28px -16px rgba(60,40,10,.35);
+  font-size:14.5px; font-weight:600; line-height:1.55; color:var(--text);
+  transition:transform .28s cubic-bezier(.2,.8,.2,1), box-shadow .28s ease, border-color .28s ease;
 }
-.benefit-bullets li:last-child{border-bottom:none;}
+.benefit-bullets li::after{
+  content:"0" counter(benefit); position:absolute; right:18px; top:12px;
+  font-family:'Playfair Display',serif; font-size:30px; font-style:italic; line-height:1; color:rgba(var(--gold-rgb),.22);
+}
+.benefit-bullets li:hover{transform:translateY(-4px); border-color:rgba(var(--gold-rgb),.7); box-shadow:0 20px 38px -18px rgba(60,40,10,.45);}
 .benefit-check{
-  width:22px; height:22px; flex-shrink:0; margin-top:1px; border-radius:50%;
-  display:flex; align-items:center; justify-content:center;
-  background:rgba(var(--gold-rgb),0.14); border:1px solid rgba(var(--gold-rgb),0.45);
+  width:38px; height:38px; flex-shrink:0; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(145deg,var(--gold),#e6c98f); box-shadow:0 6px 14px -6px rgba(var(--gold-rgb),.9), inset 0 0 0 3px rgba(255,255,255,.28);
 }
-.benefit-check svg{width:12px; height:12px; stroke:var(--gold); stroke-width:2.6; fill:none; stroke-linecap:round; stroke-linejoin:round;}
+.benefit-check svg{width:18px; height:18px; stroke:#241c0f; stroke-width:2.8; fill:none; stroke-linecap:round; stroke-linejoin:round;}
+@media (max-width:1023px){ .benefit-bullets{grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));} }
+@media (max-width:640px){
+  .benefit-bullets{grid-template-columns:1fr; gap:12px;}
+  .benefit-bullets li{flex-direction:row; align-items:center; gap:14px; min-height:0; padding:16px 18px;}
+  .benefit-bullets li::after{display:none;}
+  .benefit-check{width:34px; height:34px;}
+}
+@media (prefers-reduced-motion:reduce){ .benefit-bullets li{transition:none;} .benefit-bullets li:hover{transform:none;} }
 
 /* Dispatch cutoff timer */
 .cutoff-bar{
@@ -512,6 +525,13 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
   font-size:10.5px; font-weight:700; letter-spacing:.02em; cursor:pointer; transition:background .2s ease, color .2s ease;
 }
 .cart-rec-add svg{width:11px; height:11px; stroke-width:2.6;}
+.cart-recs-nav{margin-left:auto; display:flex; gap:6px;}
+.cart-recs-nav[hidden]{display:none;}
+.cart-recs-arrow{width:28px; height:28px; border-radius:50%; border:1px solid var(--line); background:var(--card-bg); color:var(--text); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; transition:border-color .2s ease, background .2s ease, color .2s ease, opacity .2s ease;}
+.cart-recs-arrow svg{width:14px; height:14px; stroke:currentColor; stroke-width:2.2;}
+.cart-recs-arrow:hover:not(:disabled){border-color:var(--gold); color:var(--gold);}
+.cart-recs-arrow:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+.cart-recs-arrow:disabled{opacity:.35; cursor:default;}
 .cart-rec-add:hover{background:var(--gold); color:#241c0f;}
 .cart-sub-row{display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:10px; color:var(--text-soft);}
 .cart-sub-row strong{color:var(--text); font-size:17px;}
@@ -795,6 +815,15 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
 </style>
 <script src="shipping-rules.js?v=20261110"></script>
 <script src="cart-recs.js?v=20261109"></script>
+<script>
+/* cart cross-sell: teach cart-recs.js the LED mask category and let every device pair with it (cart-recs.js itself is unchanged) */
+(function(){
+  var R = window.NKCartRecs && window.NKCartRecs.RULES; if(!R) return;
+  var MASK = 'beauty tech & masks';
+  R[MASK] = ['serums & ampoules', 'essences', 'moisturizers', 'cooling therapy', 'facial wand', 'sun care'];
+  ['facial wand', 'cooling therapy', 'serums & ampoules', 'essences', 'moisturizers', 'toners & pads', 'masks'].forEach(function(k){ if(R[k] && R[k].indexOf(MASK) < 0) R[k].push(MASK); });
+})();
+</script>
 <script src="review-media.js"></script>
 </head>
 <body>
@@ -826,12 +855,6 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
         <!-- one thumbnail per image, created by renderGallery(); hidden when the product has a single image -->
         <div class="gallery-thumbs product-gallery-thumbs" id="gallery-thumbs" role="group" aria-label="Product images" style="display:none"></div>
       </div>
-
-      <!-- ============ KEY BENEFITS (directly right of the gallery) ============ -->
-      <aside class="benefits-card" aria-label="Key benefits">
-        <div class="benefits-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>Key Benefits</div>
-        <ul class="benefit-bullets" id="benefit-bullets"></ul>
-      </aside>
 
       <!-- ============ INFO / BUY BOX ============ -->
       <div class="product-info">
@@ -885,6 +908,12 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
 
     <!-- sentinel: when this scrolls out of view, show the sticky mobile CTA -->
     <div id="cta-sentinel" style="height:1px;"></div>
+
+    <!-- ============ KEY BENEFITS (below the purchase section) ============ -->
+    <section class="benefits-strip" id="benefits-strip" aria-label="Key benefits">
+      <div class="benefits-head"><div><span class="benefits-eyebrow">Why you&rsquo;ll love it</span><h3 class="benefits-title">Key <em>Benefits</em></h3></div></div>
+      <ul class="benefit-bullets" id="benefit-bullets"></ul>
+    </section>
 
     <!-- ============ ACCORDION ============ -->
     <div class="accordion" id="accordion">
@@ -1036,6 +1065,10 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
     <div class="cart-recs-head">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9M14 17H5M17 3l3 4-3 4M7 21l-3-4 3-4"/></svg>
       <span id="cart-recs-title">Trending K-Beauty Best Sellers</span>
+      <div class="cart-recs-nav" id="cart-recs-nav" role="group" aria-label="Browse suggestions" hidden>
+        <button type="button" class="cart-recs-arrow" data-recs-nav="-1" aria-label="Previous suggestions"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <button type="button" class="cart-recs-arrow" data-recs-nav="1" aria-label="Next suggestions"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
     </div>
     <div class="cart-recs-grid" id="cart-recs-grid"></div>
   </div>
@@ -1110,7 +1143,10 @@ var DEFAULT_CATALOG = [
   { id:7, brand:"Round Lab", name:"Round Lab Birch Juice Moisturizing Cream", category:"Moisturizers", price:28.00, oldPrice:34.00, bestseller:false, desc:"A cushiony moisturizing cream with birch tree sap that seals in hydration and leaves skin feeling soft and comfortable.", img:"https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?w=600", tags:["#BarrierRepair", "#Hydration"] },
   { id:8, brand:"NIKORA Tech", name:"NIKORA Electroporation & LED Skin Booster Wand", category:"Facial Wand", price:129.00, oldPrice:169.00, bestseller:true, desc:"Our hero beauty-tech wand: gentle electroporation-style infusion plus LED light, designed to help your K-Beauty essences and ampoules absorb for a visible glow.", img:"https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600", tags:["#Hydration", "#AntiAgingGlow"] },
   { id:9, brand:"NIKORA Tech", name:"NIKORA Cryo-Cooling Ice Globe Sculptor", category:"Cooling Therapy", price:39.00, oldPrice:52.00, bestseller:false, desc:"A cryo-cooling facial globe for a refreshing sculpting massage that helps de-puff and contour the look of your face and neck.", img:"https://images.unsplash.com/photo-1512290900673-10705a3962d3?w=600", tags:["#AcneCalming"] },
-  { id:10, brand:"NIKORA", name:"The NIKORA Glass Skin Barrier Set", category:"Bundles & Sets", price:159.00, oldPrice:215.00, bestseller:true, desc:"The complete Glass Skin ritual: NIKORA Booster Wand, COSRX Snail 96 Mucin Power Essence, Skin1004 Madagascar Centella Ampoule and a Biodance Bio-Collagen Real Deep Mask Set.", img:"https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600", tags:["#BarrierRepair", "#Hydration", "#AntiAgingGlow"] }
+  { id:10, brand:"NIKORA", name:"The NIKORA Glass Skin Barrier Set", category:"Bundles & Sets", price:159.00, oldPrice:215.00, bestseller:true, desc:"The complete Glass Skin ritual: NIKORA Booster Wand, COSRX Snail 96 Mucin Power Essence, Skin1004 Madagascar Centella Ampoule and a Biodance Bio-Collagen Real Deep Mask Set.", img:"https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600", tags:["#BarrierRepair", "#Hydration", "#AntiAgingGlow"] },
+  { id:24, brand:"NIKORA Beauty Tech", name:"NIKORA Hello Face LED Therapy Mask (Red Light Therapy for Face & Home Travel)", category:"Beauty Tech & Masks", price:129.00, oldPrice:169.00, bestseller:true, shipFrom:"us", desc:"Advanced home-travel LED face mask featuring red light therapy for skin rejuvenation, collagen boost, and blemish care.", img:"https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600", tags:["#AntiAgingGlow", "#AcneCalming"] },
+  { id:25, brand:"NIKORA Beauty Tech", name:"NIKORA Ice Roller Set (Cooling Facial Roller & Massage Tools)", category:"Cooling Therapy", price:24.00, oldPrice:34.00, bestseller:false, shipFrom:"us", desc:"A cooling ice roller set for a refreshing facial massage that helps de-puff and soothe the look of tired, flushed skin. Keep it in the freezer and glide it over serum-prepped skin.", img:"https://images.unsplash.com/photo-1512290900673-10705a3962d3?w=600", tags:["#AcneCalming", "#Hydration"] },
+  { id:26, brand:"NIKORA Beauty Tech", name:"NIKORA 4 In 1 Skin Care Massager", category:"Facial Wand", price:39.00, oldPrice:54.00, bestseller:false, shipFrom:"us", desc:"A compact 4-in-1 skin care massager that combines gentle massage, warmth and light-based care to help your serums and creams absorb for a smooth, glowy finish.", img:"https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600", tags:["#Hydration", "#AntiAgingGlow"] }
 ];
 
 var RICH_DEFAULT_PRODUCT = {
@@ -1387,6 +1423,7 @@ function getShipping(p){
   var base = (isDevice(p) ? DEFAULT_SHIPPING : SKINCARE_SHIPPING).slice();
   var own = window.NKShipping && NKShipping.productLine(p);   /* supplier-specific estimate for this product */
   if(own) base[0] = own;
+  else if(isDevice(p)) base[0] = 'Ships from our United States warehouse (US to US fulfillment): US Express Shipping: 3\u20137 business days (1\u20133 days processing). Express shipping is FREE on orders of $50.00+, otherwise a $4.99 flat rate per order.';
   return base;
 }
 function benefitsPanelHtml(p){
@@ -1569,6 +1606,7 @@ function renderProduct(){
   document.getElementById('gallery-badges').innerHTML = badgesHtml;
 
   var bullets = getBullets(p).map(stripEmoji).filter(Boolean);
+  var bStrip = document.getElementById('benefits-strip'); if(bStrip) bStrip.hidden = !bullets.length;
   document.getElementById('benefit-bullets').innerHTML = bullets.map(function(b){
     return '<li><span class="benefit-check">' + ICON_CHECK + '</span><span>' + escapeHtml(b) + '</span></li>';
   }).join('');
@@ -2090,7 +2128,10 @@ var NK_FALLBACK = [
   { id:'20', name:"VT Cosmetics Reedle Shot 100 Micro-Needling Booster 50ml", brand:"VT Cosmetics", price:34.00, category:"Beauty Tech & Serums", img:'', flag:"Bestseller", bestseller:true, bestsellerRank:null },
   { id:'21', name:"Anua Niacinamide 10% + TXA 4% Dark Spot Correcting Serum 30ml", brand:"Anua", price:22.00, category:"Serums & Ampoules", img:'' },
   { id:'22', name:"Medicube Collagen Night Wrapping Peel-Off Mask 75ml", brand:"Medicube", price:21.00, category:"Masks", img:'' },
-  { id:'23', name:"TIRTIR Mask Fit Red Cushion Foundation (Full Range)", brand:"TIRTIR", price:25.00, category:"Makeup & Complexion", img:'' }
+  { id:'23', name:"TIRTIR Mask Fit Red Cushion Foundation (Full Range)", brand:"TIRTIR", price:25.00, category:"Makeup & Complexion", img:'' },
+  { id:'24', name:"NIKORA Hello Face LED Therapy Mask (Red Light Therapy for Face & Home Travel)", brand:"NIKORA Beauty Tech", price:129.00, category:"Beauty Tech & Masks", img:'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600', flag:"Bestseller", bestseller:true, bestsellerRank:9 },
+  { id:'25', name:"NIKORA Ice Roller Set (Cooling Facial Roller & Massage Tools)", brand:"NIKORA Beauty Tech", price:24.00, category:"Cooling Therapy", img:'https://images.unsplash.com/photo-1512290900673-10705a3962d3?w=600' },
+  { id:'26', name:"NIKORA 4 In 1 Skin Care Massager", brand:"NIKORA Beauty Tech", price:39.00, category:"Facial Wand", img:'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600' }
 ];
 
 function nkEsc(str){
@@ -2105,8 +2146,8 @@ function nkEsc(str){
    a device in the bag or being viewed  ->  the K-Beauty essentials (COSRX Snail, Anua Toner, Beauty of Joseon SPF) come first
    ids are the catalog ids '1'-'10' (lib/products.js slugs are accepted too). Products it does not know (added in the admin panel) go last. */
 var NK_SLUG_IDS = { 'cosrx-snail-mucin':'1', 'anua-heartleaf-toner':'2', 'boj-relief-sun':'3', 'skin1004-centella-ampoule':'4', 'laneige-lip-sleeping-mask':'5',
-  'biodance-collagen-mask':'6', 'roundlab-birch-cream':'7', 'nikora-booster-wand':'8', 'nikora-cryo-globe':'9', 'nikora-glass-skin-bundle':'10' };
-var NK_ROLE = { '1':'skin', '2':'skin', '3':'skin', '4':'skin', '5':'skin', '6':'skin', '7':'skin', '8':'device', '9':'device', '10':'bundle' };
+  'biodance-collagen-mask':'6', 'roundlab-birch-cream':'7', 'nikora-booster-wand':'8', 'nikora-cryo-globe':'9', 'nikora-glass-skin-bundle':'10', 'nikora-hello-face-led-mask':'24', 'nikora-ice-roller-set':'25', 'nikora-4in1-skin-massager':'26' };
+var NK_ROLE = { '1':'skin', '2':'skin', '3':'skin', '4':'skin', '5':'skin', '6':'skin', '7':'skin', '8':'device', '9':'device', '10':'bundle', '24':'device', '25':'device', '26':'device' };
 var NK_BUNDLE_PARTS = { '10': ['8', '1', '4', '6'] };        /* Glass Skin Ritual Set = Booster Wand + COSRX + Skin1004 + Biodance mask */
 var NK_REC_ORDER = {
   skin:   ['8','9','1','2','3','4','7','6','5','10'],        /* skincare only: devices first (Wand, then Cryo Globe) */
@@ -2124,7 +2165,7 @@ function nkKey(id){ var k = String(id == null ? '' : id); return NK_SLUG_IDS[k] 
 function nkRoleOf(p){
   var r = NK_ROLE[nkKey(p && p.id)];
   if(r) return r;
-  if(p && (/^NIKORA Tech$|^NIKORA Beauty Tech$/i.test(p.brand || '') || p.category === 'Facial Wand' || p.category === 'Cooling Therapy')) return 'device';
+  if(p && (/^NIKORA Tech$|^NIKORA Beauty Tech$/i.test(p.brand || '') || p.category === 'Facial Wand' || p.category === 'Cooling Therapy' || p.category === 'Beauty Tech & Masks')) return 'device';
   return (p && p.category === 'Bundles & Sets') ? 'bundle' : 'skin';
 }
 function nkOwned(id){                                          /* ids a cart line already covers (a bundle covers its parts) */
@@ -2332,6 +2373,37 @@ function nkCarouselBind(){
   }, { passive: true });
 }
 
+/* ---- carousel arrows ( < and > ): page through the suggestions; they wrap around while the strip auto-loops ---- */
+function nkRecsNavUpdate(){
+  var g = document.getElementById('cart-recs-grid'), nav = document.getElementById('cart-recs-nav');
+  if(!g || !nav) return;
+  var overflow = g.scrollWidth > g.clientWidth + 4, looping = g.getAttribute('data-loop') === '1';
+  nav.hidden = !overflow;
+  var btns = nav.querySelectorAll('.cart-recs-arrow');
+  if(btns.length === 2){
+    btns[0].disabled = !looping && g.scrollLeft <= 2;
+    btns[1].disabled = !looping && g.scrollLeft + g.clientWidth >= g.scrollWidth - 2;
+  }
+}
+function nkRecsPage(dir){
+  var g = document.getElementById('cart-recs-grid'); if(!g) return;
+  var card = g.querySelector('.cart-rec-card'), gap = parseFloat(getComputedStyle(g).columnGap) || 12;
+  var w = (card ? card.offsetWidth : 130) + gap, step = Math.max(w, Math.floor(g.clientWidth / w) * w);
+  NK_CAR.resumeAt = Date.now() + 4000;                              /* the shopper is browsing: pause the auto-scroll */
+  var period = nkCarouselPeriod(g);
+  if(period > 0 && dir < 0 && g.scrollLeft < step) g.scrollLeft += period;     /* wrap backwards in the looping strip */
+  if(g.scrollBy) g.scrollBy({ left: dir * step, behavior: NK_REDUCED ? 'auto' : 'smooth' }); else g.scrollLeft += dir * step;
+}
+document.addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('[data-recs-nav]');
+  if(b && !b.disabled){ e.preventDefault(); nkRecsPage(Number(b.getAttribute('data-recs-nav')) || 1); }
+});
+(function(){
+  var g = document.getElementById('cart-recs-grid');
+  if(g) g.addEventListener('scroll', function(){ nkRecsNavUpdate(); }, { passive: true });
+  window.addEventListener('resize', nkRecsNavUpdate);
+})();
+
 function renderCartRecs(cart){
   var section = document.getElementById('cart-recs-section');
   var grid = document.getElementById('cart-recs-grid');
@@ -2344,15 +2416,18 @@ function renderCartRecs(cart){
   if(window.NKCartRecs){
     rec = NKCartRecs.select({ cart: cart, pool: pool, current: current, max: NK_MAX_RECS });
     NKCartRecs.setTitle(rec.title);
-  } else {                                                       /* cart-recs.js missing: plain pool minus what is already in the bag */
+  } else {                                                       /* no cart-recs.js: still switch the heading with the bag state */
+    var tEl = document.getElementById('cart-recs-title'); if(tEl) tEl.textContent = cart.length ? 'You Might Also Like' : 'Trending K-Beauty Best Sellers';
+    rec = { mode: cart.length ? 'contextual' : 'trending' };                                                       /* cart-recs.js missing: plain pool minus what is already in the bag */
     var inBag = {}; cart.forEach(function(c){ inBag[String(c.id)] = true; });
     if(current) inBag[String(current.id)] = true;
-    rec = { picks: pool.filter(function(p){ return !inBag[String(p.id)]; }).slice(0, NK_MAX_RECS) };
+    rec.picks = pool.filter(function(p){ return !inBag[String(p.id)]; }).slice(0, NK_MAX_RECS);
   }
   var picks = rec.picks;
 
   section.style.display = 'block';                               /* the recommendations section is NEVER hidden */
   if(!picks.length){
+    nkRecsNavUpdate();
     grid.removeAttribute('data-loop');
     grid.scrollLeft = 0;
     grid.innerHTML = '<div class="cart-recs-done">You\u2019ve added everything in the collection \u2014 a complete routine.</div>';
@@ -2364,18 +2439,20 @@ function renderCartRecs(cart){
       '<div class="cart-rec-thumb">' + nkThumb(p.img, p.name) + '</div>' +
       '<div class="cart-rec-title">' + nkEsc(p.name) + '</div>' +
       '<div class="cart-rec-price">$' + p.price.toFixed(2) + '</div>' +
-      '<button type="button" class="cart-rec-add" data-action="add-rec" data-id="' + nkEsc(p.id) + '"' + (clone ? ' tabindex="-1"' : '') + ' aria-label="Add ' + nkEsc(p.name) + ' to bag">' + NK_ICONS.plus + 'Add</button>' +
+      '<button type="button" class="cart-rec-add" data-action="add-rec" data-id="' + nkEsc(p.id) + '"' + (clone ? ' tabindex="-1"' : '') + ' aria-label="Add ' + nkEsc(p.name) + ' to bag">' + NK_ICONS.plus + 'Add to Cart</button>' +
     '</div>';
   }
   var first = picks.map(function(p){ return card(p, false); }).join('');
   var viewW = grid.clientWidth || 372;
-  var loops = !NK_REDUCED && picks.length * 142 > viewW;         /* only loop when the strip actually overflows */
+  /* empty bag (trending): endless auto-scrolling strip; items in the bag (targeted cross-sell): a calm strip the shopper pages through with the arrows */
+  var loops = rec.mode !== 'contextual' && !NK_REDUCED && picks.length * 142 > viewW;         /* only loop when the strip actually overflows */
   var prev = grid.scrollLeft;
   grid.innerHTML = loops ? first + picks.map(function(p){ return card(p, true); }).join('') : first;
   if(loops) grid.setAttribute('data-loop', '1'); else grid.removeAttribute('data-loop');
   grid.scrollLeft = loops ? prev : 0;                            /* adding an item must not snap the strip back */
   NK_CAR.pos = grid.scrollLeft;
   nkCarouselStart();
+  nkRecsNavUpdate();
 }
 
 function renderCart(){
