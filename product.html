@@ -326,19 +326,68 @@ button{font-family:inherit;cursor:pointer;}
   .nk-rich .nk-w-25,.nk-rich .nk-w-33,.nk-rich .nk-w-50{width:100%;}
 }
 
-/* ---------------- STICKY MOBILE CTA ---------------- */
+/* ---------------- STICKY BUY BAR (all screen sizes) ---------------- */
+:root{--sbb-h:0px;}
 .mobile-cta-bar{
-  display:none; position:fixed; left:0; right:0; bottom:0; z-index:500;
-  background:var(--surface-raised); backdrop-filter:blur(20px); border-top:1px solid var(--card-border);
-  padding:12px clamp(16px,4vw,20px); align-items:center; justify-content:space-between; gap:14px;
-  transform:translateY(100%); transition:transform .3s ease;
-  box-shadow:0 -10px 30px -10px rgba(0,0,0,0.35);
+  position:fixed; left:0; right:0; bottom:0; z-index:500;
+  background:var(--surface-raised); -webkit-backdrop-filter:blur(20px) saturate(1.2); backdrop-filter:blur(20px) saturate(1.2);
+  border-top:1px solid var(--card-border);
+  padding:12px 0 calc(12px + env(safe-area-inset-bottom, 0px));
+  transform:translateY(105%); visibility:hidden; pointer-events:none;
+  transition:transform .35s cubic-bezier(.2,.8,.2,1), visibility 0s linear .35s;
+  box-shadow:0 -12px 34px -14px rgba(0,0,0,0.35);
 }
-@media (max-width:768px){ .mobile-cta-bar{display:flex;} }
-.mobile-cta-bar.show{transform:translateY(0);}
+.mobile-cta-bar.show{transform:translateY(0); visibility:visible; pointer-events:auto; transition:transform .35s cubic-bezier(.2,.8,.2,1), visibility 0s;}
+.sbb-inner{
+  width:100%; max-width:1240px; margin:0 auto; padding:0 clamp(16px,4vw,48px);
+  display:flex; align-items:center; gap:20px;
+}
+.sbb-product{display:flex; align-items:center; gap:12px; min-width:0; flex:1 1 auto;}
+.sbb-thumb{
+  width:52px; height:52px; flex-shrink:0; border-radius:12px; overflow:hidden;
+  border:1px solid var(--line); background:var(--surface-tint);
+}
+.sbb-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+.sbb-meta{min-width:0; display:flex; flex-direction:column; gap:3px;}
+.sbb-title{
+  font-size:13px; font-weight:600; color:var(--text); line-height:1.3;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.sbb-price-row{display:flex; align-items:baseline; gap:8px;}
 .mcta-price{font-weight:700; font-size:17px; color:var(--gold); font-family:'Playfair Display',serif; white-space:nowrap;}
-.mcta-price small{display:block; font-size:10px; font-weight:500; color:var(--text-faint); font-family:'Montserrat',sans-serif;}
-.mcta-btn{flex:1; max-width:220px; padding:14px; border-radius:100px; border:none; background:var(--gold); color:#241c0f; font-weight:700; font-size:12.5px;}
+.sbb-old{font-size:12px; color:var(--text-faint); text-decoration:line-through; white-space:nowrap;}
+.sbb-old:empty{display:none;}
+.sbb-qty{flex-shrink:0;}
+.sbb-qty button{width:38px; height:38px; font-size:16px; cursor:pointer;}
+.sbb-qty span{width:36px;}
+.sbb-actions{display:flex; gap:10px; flex-shrink:0;}
+.sbb-btn{
+  padding:13px 26px; border-radius:100px; font-weight:700; font-size:12.5px; letter-spacing:.02em; white-space:nowrap; cursor:pointer;
+  transition:background .2s ease, color .2s ease, filter .2s ease;
+}
+.sbb-add{border:1px solid var(--gold); background:transparent; color:var(--gold);}
+.sbb-add:hover{background:var(--gold); color:#241c0f;}
+.sbb-buy{border:none; background:var(--gold); color:#241c0f;}
+.sbb-buy:hover{filter:brightness(1.08);}
+.sbb-btn:disabled{opacity:.5; cursor:not-allowed;}
+.sbb-add:disabled:hover{background:transparent; color:var(--gold);}
+.sbb-buy:disabled:hover{filter:none;}
+.sbb-btn:focus-visible, .sbb-qty button:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+/* keep the end of the page and the toast clear of the bar while it is showing */
+body.sbb-visible{padding-bottom:var(--sbb-h);}
+body.sbb-visible .toast{bottom:calc(var(--sbb-h) + 16px);}
+@media (max-width:860px){
+  .sbb-inner{flex-wrap:wrap; gap:10px 12px;}
+  .sbb-product{flex:1 1 calc(100% - 140px);}
+  .sbb-qty{margin-left:auto;}
+  .sbb-actions{flex:1 1 100%;}
+  .sbb-btn{flex:1; padding:13px 12px;}
+  .sbb-thumb{width:44px; height:44px; border-radius:10px;}
+  .mcta-price{font-size:16px;}
+}
+@media (prefers-reduced-motion:reduce){
+  .mobile-cta-bar, .mobile-cta-bar.show{transition:none;}
+}
 
 /* ---------------- REVIEWS SYSTEM ---------------- */
 .reviews-section{margin-top:56px; max-width:820px;}
@@ -533,6 +582,17 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
 .cart-recs-arrow:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
 .cart-recs-arrow:disabled{opacity:.35; cursor:default;}
 .cart-rec-add:hover{background:var(--gold); color:#241c0f;}
+/* "You Might Also Like": ONE product at a time (horizontal card), paged with the < > arrows */
+.cart-recs-count{align-self:center; font-size:11px; font-weight:600; letter-spacing:.04em; color:var(--text-faint); min-width:30px; text-align:center; font-variant-numeric:tabular-nums;}
+.cart-recs-grid[data-single="1"]{gap:0; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none;}
+.cart-recs-grid[data-single="1"]::-webkit-scrollbar{display:none;}
+.cart-recs-grid[data-single="1"] .cart-rec-card{flex:0 0 100%; box-sizing:border-box; scroll-snap-align:start; scroll-snap-stop:always; flex-direction:row; align-items:center; gap:14px; padding:12px;}
+.cart-recs-grid[data-single="1"] .cart-rec-thumb{flex:0 0 92px; width:92px; aspect-ratio:1/1;}
+.cart-rec-info{flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:6px;}
+.cart-recs-grid[data-single="1"] .cart-rec-title{font-size:13px; min-height:0;}
+.cart-recs-grid[data-single="1"] .cart-rec-price{font-size:15px;}
+.cart-recs-grid[data-single="1"] .cart-rec-add{margin-top:2px; padding:8px 18px; font-size:11.5px;}
+@media (prefers-reduced-motion:reduce){ .cart-recs-grid[data-single="1"]{scroll-behavior:auto;} }
 .cart-sub-row{display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:10px; color:var(--text-soft);}
 .cart-sub-row strong{color:var(--text); font-size:17px;}
 .cart-checkout{
@@ -1004,10 +1064,26 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
   </div>
 </main>
 
-<!-- ================= STICKY MOBILE CTA ================= -->
-<div class="mobile-cta-bar" id="mobile-cta-bar">
-  <span class="mcta-price"><small id="mcta-label">Total</small><span id="mcta-price">$0.00</span></span>
-  <button type="button" class="mcta-btn" id="mcta-add-btn">Add to Cart</button>
+<!-- ================= STICKY BUY BAR ================= -->
+<div class="mobile-cta-bar" id="mobile-cta-bar" role="region" aria-label="Quick purchase bar" aria-hidden="true">
+  <div class="sbb-inner">
+    <div class="sbb-product">
+      <span class="sbb-thumb"><img id="sbb-thumb" alt="" width="52" height="52"></span>
+      <span class="sbb-meta">
+        <span class="sbb-title" id="sbb-title"></span>
+        <span class="sbb-price-row"><span class="mcta-price" id="mcta-price">$0.00</span><span class="sbb-old" id="sbb-old"></span></span>
+      </span>
+    </div>
+    <div class="qty-selector sbb-qty" role="group" aria-label="Quantity">
+      <button type="button" id="sbb-qty-dec" aria-label="Decrease quantity">&minus;</button>
+      <span id="sbb-qty-value" aria-live="polite">1</span>
+      <button type="button" id="sbb-qty-inc" aria-label="Increase quantity">+</button>
+    </div>
+    <div class="sbb-actions">
+      <button type="button" class="sbb-btn sbb-add" id="mcta-add-btn">Add to Cart</button>
+      <button type="button" class="sbb-btn sbb-buy" id="sbb-buy-btn">Buy Now</button>
+    </div>
+  </div>
 </div>
 
 <footer class="site">
@@ -1066,8 +1142,9 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9M14 17H5M17 3l3 4-3 4M7 21l-3-4 3-4"/></svg>
       <span id="cart-recs-title">Trending K-Beauty Best Sellers</span>
       <div class="cart-recs-nav" id="cart-recs-nav" role="group" aria-label="Browse suggestions" hidden>
-        <button type="button" class="cart-recs-arrow" data-recs-nav="-1" aria-label="Previous suggestions"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
-        <button type="button" class="cart-recs-arrow" data-recs-nav="1" aria-label="Next suggestions"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button type="button" class="cart-recs-arrow" data-recs-nav="-1" aria-label="Previous suggestion"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <span class="cart-recs-count" id="cart-recs-count" aria-live="polite"></span>
+        <button type="button" class="cart-recs-arrow" data-recs-nav="1" aria-label="Next suggestion"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
       </div>
     </div>
     <div class="cart-recs-grid" id="cart-recs-grid"></div>
@@ -1641,10 +1718,12 @@ function renderProduct(){
     btn.textContent = ctaLabel;
   });
   document.getElementById('buy-now-btn').disabled = soldOut;
+  var sbbBuy = document.getElementById('sbb-buy-btn'); if(sbbBuy) sbbBuy.disabled = soldOut;
 
   renderGallery();
 
   document.getElementById('mcta-price').textContent = '$' + Number(p.price).toFixed(2);
+  updateStickyBarInfo(p, hasDiscount);
 
   updateQtyDisplay();
   refreshAccordionHeights();
@@ -1797,12 +1876,22 @@ function initGallery(){
 }
 
 /* ================= 5. QUANTITY SELECTOR ================= */
-function updateQtyDisplay(){ document.getElementById('qty-value').textContent = currentQty; }
+function updateQtyDisplay(){
+  document.getElementById('qty-value').textContent = currentQty;
+  var sq = document.getElementById('sbb-qty-value'); if(sq) sq.textContent = currentQty;   /* sticky bar stays in sync */
+}
 function initQty(){
   document.getElementById('qty-dec').addEventListener('click', function(){
     if(currentQty > 1){ currentQty -= 1; updateQtyDisplay(); }
   });
   document.getElementById('qty-inc').addEventListener('click', function(){
+    currentQty += 1; updateQtyDisplay();
+  });
+  /* same quantity, controlled from the sticky buy bar */
+  document.getElementById('sbb-qty-dec').addEventListener('click', function(){
+    if(currentQty > 1){ currentQty -= 1; updateQtyDisplay(); }
+  });
+  document.getElementById('sbb-qty-inc').addEventListener('click', function(){
     currentQty += 1; updateQtyDisplay();
   });
 }
@@ -1831,17 +1920,40 @@ function initAccordion(){
   window.addEventListener('resize', refreshAccordionHeights);
 }
 
-/* ================= 7. STICKY MOBILE CTA ================= */
+/* ================= 7. STICKY BUY BAR ================= */
+/* Thumbnail, title and price of the current product (called from renderProduct, so live Firebase edits flow through). */
+function updateStickyBarInfo(p, hasDiscount){
+  var img = document.getElementById('sbb-thumb'), t = document.getElementById('sbb-title'), old = document.getElementById('sbb-old');
+  if(!img || !t) return;
+  var imgs = getImages(p), src = imgs[0] || NK_PLACEHOLDER;
+  if(img.getAttribute('data-src') !== src){
+    img.setAttribute('data-src', src);
+    img.onerror = function(){ img.onerror = null; img.src = NK_PLACEHOLDER; };
+    img.src = src;
+  }
+  t.textContent = p.name || '';
+  old.textContent = hasDiscount ? '$' + nkOrigPrice(p).toFixed(2) : '';
+}
+
 function initStickyCta(){
   var bar = document.getElementById('mobile-cta-bar');
-  /* watch the real Add to Cart / Buy Now row: the bar appears the moment those buttons scroll out of view */
+  /* watch the real Add to Cart / Buy Now row: the bar slides in the moment those buttons scroll out of view */
   var sentinel = document.getElementById('main-cta-row') || document.getElementById('cta-sentinel');
+  function setShown(on){
+    bar.classList.toggle('show', on);
+    bar.setAttribute('aria-hidden', on ? 'false' : 'true');
+    if(on){ document.documentElement.style.setProperty('--sbb-h', bar.offsetHeight + 'px'); }
+    document.body.classList.toggle('sbb-visible', on);
+  }
+  window.addEventListener('resize', function(){
+    if(bar.classList.contains('show')) document.documentElement.style.setProperty('--sbb-h', bar.offsetHeight + 'px');
+  });
   if(!('IntersectionObserver' in window)) return;
   var observer = new IntersectionObserver(function(entries){
     entries.forEach(function(entry){
-      if(entry.isIntersecting){ bar.classList.remove('show'); }
-      else if(entry.boundingClientRect.top < 0){ bar.classList.add('show'); }
-      else { bar.classList.remove('show'); }
+      if(entry.isIntersecting){ setShown(false); }
+      else if(entry.boundingClientRect.top < 0){ setShown(true); }
+      else { setShown(false); }
     });
   }, { threshold: 0 });
   observer.observe(sentinel);
@@ -2377,9 +2489,18 @@ function nkCarouselBind(){
 function nkRecsNavUpdate(){
   var g = document.getElementById('cart-recs-grid'), nav = document.getElementById('cart-recs-nav');
   if(!g || !nav) return;
+  var btns = nav.querySelectorAll('.cart-recs-arrow'), cnt = document.getElementById('cart-recs-count');
+  if(g.getAttribute('data-single') === '1'){                        /* one product at a time: arrows always wrap, counter "2 / 5" */
+    var total = g.querySelectorAll('.cart-rec-card').length, w = g.clientWidth || 1;
+    var idx = Math.min(total - 1, Math.max(0, Math.round(g.scrollLeft / w)));
+    nav.hidden = total < 2;
+    if(btns.length === 2){ btns[0].disabled = false; btns[1].disabled = false; }
+    if(cnt) cnt.textContent = total > 1 ? (idx + 1) + ' / ' + total : '';
+    return;
+  }
+  if(cnt) cnt.textContent = '';
   var overflow = g.scrollWidth > g.clientWidth + 4, looping = g.getAttribute('data-loop') === '1';
   nav.hidden = !overflow;
-  var btns = nav.querySelectorAll('.cart-recs-arrow');
   if(btns.length === 2){
     btns[0].disabled = !looping && g.scrollLeft <= 2;
     btns[1].disabled = !looping && g.scrollLeft + g.clientWidth >= g.scrollWidth - 2;
@@ -2387,6 +2508,13 @@ function nkRecsNavUpdate(){
 }
 function nkRecsPage(dir){
   var g = document.getElementById('cart-recs-grid'); if(!g) return;
+  if(g.getAttribute('data-single') === '1'){                        /* exactly one card per click, wrapping first <-> last */
+    var cards = g.querySelectorAll('.cart-rec-card'), n = cards.length, w1 = g.clientWidth;
+    if(n < 2 || !w1) return;
+    var cur = Math.round(g.scrollLeft / w1), nxt = (cur + dir + n) % n;
+    if(g.scrollTo) g.scrollTo({ left: nxt * w1, behavior: NK_REDUCED ? 'auto' : 'smooth' }); else g.scrollLeft = nxt * w1;
+    return;
+  }
   var card = g.querySelector('.cart-rec-card'), gap = parseFloat(getComputedStyle(g).columnGap) || 12;
   var w = (card ? card.offsetWidth : 130) + gap, step = Math.max(w, Math.floor(g.clientWidth / w) * w);
   NK_CAR.resumeAt = Date.now() + 4000;                              /* the shopper is browsing: pause the auto-scroll */
@@ -2427,14 +2555,25 @@ function renderCartRecs(cart){
 
   section.style.display = 'block';                               /* the recommendations section is NEVER hidden */
   if(!picks.length){
-    nkRecsNavUpdate();
-    grid.removeAttribute('data-loop');
+    grid.removeAttribute('data-loop'); grid.removeAttribute('data-single');
     grid.scrollLeft = 0;
+    nkRecsNavUpdate();
     grid.innerHTML = '<div class="cart-recs-done">You\u2019ve added everything in the collection \u2014 a complete routine.</div>';
     return;
   }
 
+  var single = rec.mode === 'contextual';                         /* bag has items -> "You Might Also Like" = one product per slide */
   function card(p, clone){
+    if(single){
+      return '<div class="cart-rec-card">' +
+        '<div class="cart-rec-thumb">' + nkThumb(p.img, p.name) + '</div>' +
+        '<div class="cart-rec-info">' +
+          '<div class="cart-rec-title">' + nkEsc(p.name) + '</div>' +
+          '<div class="cart-rec-price">$' + p.price.toFixed(2) + '</div>' +
+          '<button type="button" class="cart-rec-add" data-action="add-rec" data-id="' + nkEsc(p.id) + '" aria-label="Add ' + nkEsc(p.name) + ' to bag">' + NK_ICONS.plus + 'Add to Cart</button>' +
+        '</div>' +
+      '</div>';
+    }
     return '<div class="cart-rec-card"' + (clone ? ' aria-hidden="true"' : '') + '>' +
       '<div class="cart-rec-thumb">' + nkThumb(p.img, p.name) + '</div>' +
       '<div class="cart-rec-title">' + nkEsc(p.name) + '</div>' +
@@ -2445,10 +2584,11 @@ function renderCartRecs(cart){
   var first = picks.map(function(p){ return card(p, false); }).join('');
   var viewW = grid.clientWidth || 372;
   /* empty bag (trending): endless auto-scrolling strip; items in the bag (targeted cross-sell): a calm strip the shopper pages through with the arrows */
-  var loops = rec.mode !== 'contextual' && !NK_REDUCED && picks.length * 142 > viewW;         /* only loop when the strip actually overflows */
+  var loops = !single && !NK_REDUCED && picks.length * 142 > viewW;         /* only loop when the strip actually overflows */
   var prev = grid.scrollLeft;
   grid.innerHTML = loops ? first + picks.map(function(p){ return card(p, true); }).join('') : first;
   if(loops) grid.setAttribute('data-loop', '1'); else grid.removeAttribute('data-loop');
+  if(single) grid.setAttribute('data-single', '1'); else grid.removeAttribute('data-single');
   grid.scrollLeft = loops ? prev : 0;                            /* adding an item must not snap the strip back */
   NK_CAR.pos = grid.scrollLeft;
   nkCarouselStart();
@@ -2894,6 +3034,10 @@ function bindEvents(){
     openCart();
   });
   document.getElementById('buy-now-btn').addEventListener('click', function(){
+    addCurrentProductToCart(currentQty);
+    window.location.href = 'checkout.html';
+  });
+  document.getElementById('sbb-buy-btn').addEventListener('click', function(){
     addCurrentProductToCart(currentQty);
     window.location.href = 'checkout.html';
   });
