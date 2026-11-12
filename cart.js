@@ -505,6 +505,12 @@ function renderCartRecs(cart){
 }
 
 function renderCart(){
+  if(document.body) nkInjectDom();                                /* drawer exists even if a page calls renderCart() before DOMContentLoaded */
+  var res = nkRenderCartCore.apply(this, arguments);
+  try{ document.dispatchEvent(new CustomEvent('nikora:cart-rendered')); }catch(e){}
+  return res;
+}
+function nkRenderCartCore(){
   var cart = getCart();
   var wrap = document.getElementById('cart-items-list');
   var subtotal = 0, count = 0;
@@ -557,6 +563,7 @@ function renderCart(){
 
 /* ---- open / close (single source of truth for every page) ---- */
 window.openCart = function(){
+  if(document.body) nkInjectDom();
   document.getElementById('cart-drawer').classList.add('active');
   document.getElementById('cart-overlay').classList.add('active');
   document.body.style.overflow = 'hidden';
@@ -754,6 +761,14 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
 
 /* ---- public API (also exported as plain globals for the existing pages) ---- */
 window.NikoraCart = { add: cartAdd, open: function(){ window.openCart(); }, close: function(){ window.closeCart(); }, render: renderCart, get: getCart, bump: bumpCartBadge, setQty: changeQty, remove: removeFromCart, version: '2026-11-12' };
+/* helpers some pages use directly (checkout summary + promo, catalog device/bundle checks, reviews) */
+[ ['nkFind', nkFind], ['nkRoleOf', nkRoleOf], ['nkPromoCalc', nkPromoCalc], ['nkPromoDesc', nkPromoDesc], ['nkPromoStatus', nkPromoStatus],
+  ['nkPromoApplied', nkPromoApplied], ['nkPromoKey', nkPromoKey], ['nkPromoMap', nkPromoMap], ['nkListFromObject', nkListFromObject],
+  ['nkDropLegacy', nkDropLegacy], ['nkPromoApply', nkPromoApply], ['nkPromoRemove', nkPromoRemove], ['nkClone', nkClone], ['nkEsc', nkEsc] ]
+  .forEach(function(kv){ if(typeof kv[1] === 'function' && !(kv[0] in window)) window[kv[0]] = kv[1]; });
+Object.defineProperty(window, 'NK_PROMOS',        { configurable: true, get: function(){ return NK_PROMOS; },        set: function(v){ NK_PROMOS = v; } });
+Object.defineProperty(window, 'NK_PROMOS_LOADED', { configurable: true, get: function(){ return NK_PROMOS_LOADED; }, set: function(v){ NK_PROMOS_LOADED = v; } });
+Object.defineProperty(window, 'NK_PROMO_REF',     { configurable: true, get: function(){ return NK_PROMO_REF; },     set: function(v){ NK_PROMO_REF = v; } });
 window.getCart = getCart; window.saveCart = saveCart; window.cartAdd = cartAdd; window.bumpCartBadge = bumpCartBadge;
 window.renderCart = renderCart; window.changeQty = changeQty; window.removeFromCart = removeFromCart;
 
