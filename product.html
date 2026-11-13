@@ -148,7 +148,23 @@ button{font-family:inherit;cursor:pointer;}
   position:absolute; right:12px; bottom:12px; z-index:2; font-size:11px; font-weight:700; letter-spacing:.04em;
   padding:4px 10px; border-radius:100px; background:rgba(20,16,12,.55); color:#fff; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
 }
-@media (prefers-reduced-motion: reduce){ .gallery-main img, .gallery-thumb{transition:none;} }
+/* Prev / next arrows on the hero image: always visible (no hover needed), 44px touch targets, scoped to .gallery-main */
+.gallery-main .g-arrow{
+  position:absolute; top:50%; transform:translateY(-50%); z-index:4; width:44px; height:44px; padding:0; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; cursor:pointer; pointer-events:auto;
+  background:rgba(20,16,12,.58); color:#fff; border:1px solid rgba(255,255,255,.28);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); box-shadow:0 4px 14px rgba(0,0,0,.28);
+  -webkit-tap-highlight-color:transparent; touch-action:manipulation; transition:background .2s ease, transform .15s ease, border-color .2s ease;
+}
+.gallery-main .g-arrow[hidden]{display:none}
+.gallery-main .g-arrow.g-prev{left:10px}
+.gallery-main .g-arrow.g-next{right:10px}
+.gallery-main .g-arrow svg{width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; pointer-events:none}
+.gallery-main .g-arrow:hover{background:var(--gold, #C89B54); border-color:var(--gold, #C89B54); color:#241c0f}
+.gallery-main .g-arrow:active{transform:translateY(-50%) scale(.92)}
+.gallery-main .g-arrow:focus-visible{outline:2px solid var(--gold, #C89B54); outline-offset:2px}
+@media (max-width:719px){ .gallery-main .g-arrow{width:46px; height:46px} .gallery-main .g-arrow.g-prev{left:8px} .gallery-main .g-arrow.g-next{right:8px} }
+@media (prefers-reduced-motion: reduce){ .gallery-main img, .gallery-thumb, .gallery-main .g-arrow{transition:none;} }
 .gallery-badges{position:absolute; top:14px; left:14px; display:flex; flex-direction:column; gap:6px; z-index:2;}
 .badge-bestseller, .badge-sale, .badge-lowstock{
   font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
@@ -744,6 +760,8 @@ footer.site{border-top:1px solid var(--line); padding:56px 0 28px; margin-top:20
         <div class="gallery-main" id="gallery-main">
           <div class="gallery-badges" id="gallery-badges"></div>
           <img id="main-image" src="" alt="">
+          <button type="button" class="g-arrow g-prev" id="g-prev" aria-label="Previous image" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <button type="button" class="g-arrow g-next" id="g-next" aria-label="Next image" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
           <span class="gallery-count" id="gallery-count" aria-live="polite" hidden></span>
         </div>
         <!-- one thumbnail per image, created by renderGallery(); hidden when the product has a single image -->
@@ -1568,6 +1586,9 @@ function updateGalleryUi(){
   }
   var count = document.getElementById('gallery-count');
   count.hidden = n < 2;
+  var gp = document.getElementById('g-prev'), gn = document.getElementById('g-next');
+  if(gp) gp.hidden = n < 2;
+  if(gn) gn.hidden = n < 2;
   count.textContent = (galleryIndex + 1) + ' / ' + n;
   var name = (CURRENT_PRODUCT && CURRENT_PRODUCT.name) || '';
   document.getElementById('main-image').alt = n > 1 ? name + ' (image ' + (galleryIndex + 1) + ' of ' + n + ')' : name;
@@ -1626,6 +1647,15 @@ function initGallery(){
     showGalleryImage(i);
     var b = wrap.querySelector('[data-idx="' + i + '"]');
     if(b && b.focus) b.focus({ preventScroll: true });
+  });
+
+  /* prev / next arrows (wrap around); they never start a swipe */
+  function stepGallery(dir){ var n = galleryImages.length; if(n < 2) return; showGalleryImage((galleryIndex + dir + n) % n); }
+  [['g-prev', -1], ['g-next', 1]].forEach(function(a){
+    var b = document.getElementById(a[0]); if(!b) return;
+    b.addEventListener('pointerdown', function(e){ e.stopPropagation(); });
+    b.addEventListener('pointerup', function(e){ e.stopPropagation(); });
+    b.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); stepGallery(a[1]); });
   });
 
   /* swipe / drag on the hero image (touch-action:pan-y keeps vertical scrolling) */
@@ -1775,7 +1805,19 @@ function getReviews(){
 }
 function saveReviews(list){ safeStorage.setItem('nikora_reviews_' + PRODUCT_ID, JSON.stringify(list)); }
 
+/* A review counts only when it is published (approved) and carries a real 1-5 rating. Reviews are instant (approved:true); anything flagged pending/rejected stays out. */
+function nkIsPublished(r){
+  if(!r || typeof r !== 'object') return false;
+  if(r.approved === false) return false;
+  var st = String(r.status || '').toLowerCase();
+  if(st === 'pending' || st === 'rejected' || st === 'deleted') return false;
+  var v = Number(r.rating);
+  return v >= 1 && v <= 5;
+}
+function nkPublishedOnly(list){ return (list || []).filter(nkIsPublished); }
+
 function renderReviewStats(reviews){
+  reviews = nkPublishedOnly(reviews);
   var total = reviews.length;
   var scoreEl = document.getElementById('rs-score');
   var starsEl = document.getElementById('rs-stars');
@@ -1801,7 +1843,7 @@ function renderReviewStats(reviews){
   var sum = 0, counts = {1:0,2:0,3:0,4:0,5:0};
   reviews.forEach(function(r){
     sum += Number(r.rating) || 0;
-    counts[r.rating] = (counts[r.rating] || 0) + 1;
+    var rk = Math.round(Number(r.rating)); counts[rk] = (counts[rk] || 0) + 1;
   });
   var avg = sum / total;
 
@@ -1809,7 +1851,7 @@ function renderReviewStats(reviews){
   starsEl.innerHTML = starsHtml(avg);
   countEl.textContent = total + (total === 1 ? ' review' : ' reviews');
   headStars.innerHTML = starsHtml(avg);
-  headScore.textContent = avg.toFixed(1) + '/5';
+  headScore.textContent = avg.toFixed(1) + '/5 \u00b7 ' + total + (total === 1 ? ' review' : ' reviews');
 
   barsEl.innerHTML = [5,4,3,2,1].map(function(star){
     var c = counts[star] || 0;
@@ -1823,6 +1865,7 @@ function renderReviewStats(reviews){
 }
 
 function renderReviewList(reviews){
+  reviews = nkPublishedOnly(reviews);
   var wrap = document.getElementById('review-list');
   if(reviews.length === 0){
     wrap.innerHTML = '<div class="review-empty">No reviews yet — be the first to share your experience.</div>';
@@ -1867,20 +1910,36 @@ function refreshReviews(){
    Firebase-generated key becomes that review's `id`), live-updating
    the stats/list for every visitor the instant a review is submitted
    or one is removed — no page reload needed anywhere. */
+function nkReviewKeys(){
+  var p = CURRENT_PRODUCT || {}, seen = {}, out = [];
+  [PRODUCT_ID, p.id, p.slug, p.sku, p.supplierSku, p.spu].forEach(function(k){
+    k = (k === undefined || k === null) ? '' : String(k);
+    if(!k || /[.#$\[\]\/]/.test(k) || seen[k]) return;
+    seen[k] = 1; out.push(k);
+  });
+  return out;
+}
 function initFirebaseReviewsSync(){
   if(!firebaseReady) return;
-  db.ref('reviews/' + PRODUCT_ID).on('value', function(snap){
-    var data = snap.val() || {};
-    var arr = Object.keys(data).filter(function(key){ var v = data[key]; return v && typeof v === 'object'; }).map(function(key){
-      var r = data[key];
-      r.id = key;
-      return r;
-    });
-    saveReviews(arr); // keep the offline cache current too
+  var bucket = {};
+  function paint(){
+    var arr = [];
+    Object.keys(bucket).forEach(function(k){ arr = arr.concat(bucket[k]); });
+    arr = nkPublishedOnly(arr);
+    saveReviews(arr);               // offline cache holds only this product's published reviews
     renderReviewStats(arr);
     renderReviewList(arr);
-  }, function(err){
-    console.warn('Firebase live reviews sync error — staying on local data.', err);
+  }
+  nkReviewKeys().forEach(function(k){
+    db.ref('reviews/' + k).on('value', function(snap){
+      var data = snap.val() || {};
+      bucket[k] = Object.keys(data).filter(function(key){ var v = data[key]; return v && typeof v === 'object'; }).map(function(key){
+        var r = data[key]; r.id = key; return r;
+      });
+      paint();
+    }, function(err){
+      console.warn('Firebase live reviews sync error \u2014 staying on local data.', err);
+    });
   });
 }
 
