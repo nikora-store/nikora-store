@@ -244,13 +244,32 @@
     /* Desktop header bar */
     header: [
       { label: 'Home',        href: 'index.html' },
-      /* "All Shop": the label goes straight to the full catalog; on desktop hovering / focusing it opens the category dropdown, in the mobile drawer it becomes an accordion.
-         Edit the children here (label, desc, href). The ?category= values are resolved by catalog.html. */
-      { label: 'All Shop',    href: 'catalog.html', children: [
-        { label: 'LED Masks',            desc: 'Red-light therapy devices',  href: 'catalog.html?category=led-masks' },
-        { label: 'Microcurrent Devices', desc: 'Lifting and toning tools',   href: 'catalog.html?category=microcurrent' },
-        { label: 'Serums & Skincare',    desc: 'K-Beauty essentials',        href: 'catalog.html?category=serums-skincare' },
-        { label: 'Best Sellers',         desc: 'Most loved right now',       href: 'catalog.html?category=best-sellers' }
+      /* "All Shop": the label goes straight to the full catalog; on desktop hovering / focusing it opens the category mega menu, in the mobile drawer it becomes an accordion.
+         Edit the groups here (group title, then label / desc / href per link). The same list feeds desktop and mobile, so they never drift apart.
+         ?category= slugs and ?concern= keys are resolved by catalog.html (concern keys: BarrierRepair, Hydration, AcneCalming, AntiAgingGlow). */
+      { label: 'All Shop',    href: 'catalog.html', groups: [
+        { title: 'Beauty Tech Devices', links: [
+          { label: 'LED Masks',             desc: 'Red-light therapy devices',   href: 'catalog.html?category=led-masks' },
+          { label: 'Microcurrent & Wands',  desc: 'Lifting and toning tools',    href: 'catalog.html?category=microcurrent' },
+          { label: 'Cooling & Ice Tools',   desc: 'De-puff and sculpt',          href: 'catalog.html?category=cooling-tools' }
+        ] },
+        { title: 'K-Beauty Skincare', links: [
+          { label: 'Toners & Essences',     desc: 'Hydrating prep steps',        href: 'catalog.html?category=toners-essences' },
+          { label: 'Serums & Ampoules',     desc: 'Targeted K-Beauty actives',   href: 'catalog.html?category=serums-skincare' },
+          { label: 'Moisturizers',          desc: 'Cushiony barrier support',    href: 'catalog.html?category=moisturizers' },
+          { label: 'Sun Care',              desc: 'Daily SPF50+ protection',     href: 'catalog.html?category=sun-care' },
+          { label: 'Masks & Lip Care',      desc: 'Overnight and weekly treats', href: 'catalog.html?category=masks-lip-care' }
+        ] },
+        { title: 'Shop by Skin Concern', links: [
+          { label: 'Hydration',             desc: 'Plump, dewy-looking skin',    href: 'catalog.html?concern=Hydration' },
+          { label: 'Barrier Repair',        desc: 'Dry or sensitive-feeling',    href: 'catalog.html?concern=BarrierRepair' },
+          { label: 'Acne Calming',          desc: 'Oily or blemish-prone',       href: 'catalog.html?concern=AcneCalming' },
+          { label: 'Anti-Aging Glow',       desc: 'Smoother, firmer-looking',    href: 'catalog.html?concern=AntiAgingGlow' }
+        ] },
+        { title: 'Collections', links: [
+          { label: 'Best Sellers',          desc: 'Most loved right now',        href: 'catalog.html?category=best-sellers' },
+          { label: 'Bundles & Sets',        desc: 'Complete rituals, better value', href: 'catalog.html?category=bundles' }
+        ] }
       ] },
       { label: 'Science',     href: 'science.html' },
       { label: 'Reviews',     href: 'reviews.html' },
@@ -512,7 +531,7 @@
      padding-top bridge, so the pointer can travel from the link to the card without the menu closing. Opaque card (the header already owns a backdrop blur). */
   '.nkn-link .nkn-chev{width:12px;height:12px;margin-left:5px;flex:none;transition:transform .25s cubic-bezier(.2,.8,.2,1);}',
   '.nkn-link[aria-expanded="true"] .nkn-chev{transform:rotate(180deg);}',
-  '.nkn-sub{position:absolute;top:100%;left:0;z-index:5;width:var(--nkn-sub-w,310px);padding-top:var(--nkn-sub-pt,26px);opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-6px);',
+  '.nkn-sub{position:absolute;top:100%;left:0;z-index:5;width:var(--nkn-sub-w,640px);max-width:calc(100vw - 24px);padding-top:var(--nkn-sub-pt,26px);opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-6px);',
   '  transition:opacity .22s ease,transform .26s cubic-bezier(.2,.8,.2,1),visibility 0s linear .26s;}',
   '.nkn-sub.is-open{opacity:1;visibility:visible;pointer-events:auto;transform:none;transition-delay:0s;}',
   '.nkn-sub-card{padding:8px;border-radius:18px;background:var(--nkn-sub-bg);border:1px solid rgba(var(--nkn-gold-rgb),.4);box-shadow:var(--nkn-float-shadow-scrolled);}',
@@ -522,6 +541,11 @@
   '.nkn-sub-link small{display:block;margin-top:2px;font-size:11.5px;color:var(--nkn-faint);}',
   '.nkn-sub-link svg{width:14px;height:14px;flex:none;color:var(--nkn-gold);opacity:0;transform:translateX(-4px);transition:opacity .18s ease,transform .18s ease;}',
   '.nkn-sub-link:hover svg,.nkn-sub-link:focus-visible svg{opacity:1;transform:none;}',
+  '.nkn-sub-card{max-height:calc(100vh - 150px);overflow-y:auto;overscroll-behavior:contain;}',
+  '.nkn-sub-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 14px;padding:2px 4px 4px;}',
+  '.nkn-sub-title{padding:10px 12px 4px;font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--nkn-gold);}',
+  '.nkn-d-subtitle{padding:12px 12px 4px;font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--nkn-gold);}',
+  '.nkn-d-subtitle:first-child{padding-top:6px;}',
   '.nkn-sub-all{margin-bottom:6px;padding-bottom:12px;border-bottom:1px solid var(--nkn-line);border-radius:12px 12px 0 0;}',
   '.nkn-sub-all b{color:var(--nkn-gold);}',
 
@@ -636,17 +660,27 @@
     '</div>';
   }
 
+  /* Mega-menu data helpers: a nav item may carry `groups` (titled columns) or a plain `children` list; both are normalised to groups. */
+  function subGroups(p) {
+    if (p && p.groups && p.groups.length) return p.groups;
+    if (p && p.children && p.children.length) return [{ title: '', links: p.children }];
+    return [];
+  }
+
   function buildHeader() {
     var subs = '';
     var links = CONFIG.header.map(function (p, idx) {
       var st = state(p.href);
-      if (p.children && p.children.length) {                                   /* "All Shop": link + dropdown panel (the panel is appended after the links) */
+      if (subGroups(p).length) {                                               /* "All Shop": link + dropdown panel (the panel is appended after the links) */
         var sid = 'nkn-sub-' + idx;
         subs += '<div class="nkn-sub" id="' + sid + '" role="menu" aria-label="' + esc(p.label) + ' categories"><div class="nkn-sub-card">' +
           '<a class="nkn-sub-link nkn-sub-all" role="menuitem" href="' + esc(p.href) + '"><span><b>Shop everything</b><small>The full NIKORA collection</small></span>' + ico('arrow') + '</a>' +
-          p.children.map(function (c) {
-            return '<a class="nkn-sub-link" role="menuitem" href="' + esc(c.href) + '"><span><b>' + esc(c.label) + '</b>' + (c.desc ? '<small>' + esc(c.desc) + '</small>' : '') + '</span>' + ico('arrow') + '</a>';
-          }).join('') + '</div></div>';
+          '<div class="nkn-sub-grid">' + subGroups(p).map(function (g) {
+            return '<div class="nkn-sub-group">' + (g.title ? '<div class="nkn-sub-title">' + esc(g.title) + '</div>' : '') +
+              g.links.map(function (c) {
+                return '<a class="nkn-sub-link" role="menuitem" href="' + esc(c.href) + '"><span><b>' + esc(c.label) + '</b>' + (c.desc ? '<small>' + esc(c.desc) + '</small>' : '') + '</span>' + ico('arrow') + '</a>';
+              }).join('') + '</div>';
+          }).join('') + '</div></div></div>';
         return '<a class="nkn-link nkn-has-sub' + activeClass(st) + '" href="' + esc(p.href) + '"' + activeAttrs(st) + ' data-nkn-sub="' + sid + '" aria-haspopup="true" aria-expanded="false" aria-controls="' + sid + '">' + esc(p.label) + ico('chev', 'nkn-chev') + '</a>';
       }
       return '<a class="nkn-link' + activeClass(st) + '" href="' + esc(p.href) + '"' + activeAttrs(st) + '>' + esc(p.label) + '</a>';
@@ -669,11 +703,14 @@
   /* Mobile drawer: "All Shop" as an expandable accordion (tap the row to reveal / hide the categories; "Shop everything" opens the full catalog). */
   function shopAccordion() {
     var it = null;
-    CONFIG.header.forEach(function (p) { if (!it && p.children && p.children.length) it = p; });
+    CONFIG.header.forEach(function (p) { if (!it && subGroups(p).length) it = p; });
     if (!it) return '';
     var st = state(it.href);
     var items = '<a class="nkn-d-sublink nkn-d-all" href="' + esc(it.href) + '"><span>Shop everything</span>' + ico('arrow') + '</a>' +
-      it.children.map(function (c) { return '<a class="nkn-d-sublink" href="' + esc(c.href) + '"><span>' + esc(c.label) + '</span>' + ico('arrow') + '</a>'; }).join('');
+      subGroups(it).map(function (g) {
+        return (g.title ? '<div class="nkn-d-subtitle">' + esc(g.title) + '</div>' : '') +
+          g.links.map(function (c) { return '<a class="nkn-d-sublink" href="' + esc(c.href) + '"><span>' + esc(c.label) + '</span>' + ico('arrow') + '</a>'; }).join('');
+      }).join('');
     return '<section class="nkn-d-sec nkn-d-shop" style="--i:0" aria-label="' + esc(it.label) + '">' +
       '<button type="button" class="nkn-d-link nkn-d-acc-btn' + activeClass(st) + '" id="nkn-acc-btn" aria-expanded="false" aria-controls="nkn-acc-panel"><span>' + esc(it.label) + '</span>' + ico('chev') + '</button>' +
       '<div class="nkn-acc" id="nkn-acc-panel" role="region" aria-labelledby="nkn-acc-btn"><div class="nkn-acc-in">' + items + '</div></div></section>';
