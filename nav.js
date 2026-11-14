@@ -706,7 +706,7 @@
     CONFIG.header.forEach(function (p) { if (!it && subGroups(p).length) it = p; });
     if (!it) return '';
     var st = state(it.href);
-    var items = '<a class="nkn-d-sublink nkn-d-all" href="' + esc(it.href) + '"><span>Shop everything</span>' + ico('arrow') + '</a>' +
+    var items = '<a class="nkn-d-sublink nkn-d-all" href="' + esc(it.href) + '"><span>View All Products</span>' + ico('arrow') + '</a>' +
       subGroups(it).map(function (g) {
         return (g.title ? '<div class="nkn-d-subtitle">' + esc(g.title) + '</div>' : '') +
           g.links.map(function (c) { return '<a class="nkn-d-sublink" href="' + esc(c.href) + '"><span>' + esc(c.label) + '</span>' + ico('arrow') + '</a>'; }).join('');
@@ -717,8 +717,12 @@
   }
 
   function buildDrawer() {
+    var hasShop = !!shopAccordion();
     var secs = CONFIG.columns.map(function (sec, i) {
-      var links = sec.links.map(function (l) {
+      var links = sec.links.filter(function (l) {
+        /* the "All Shop" accordion is the drawer's catalog entry (its "View All Products" row opens catalog.html), so a second plain catalog link would skip the categories */
+        return !(hasShop && !l.action && l.href && fileOf(l.href) === 'catalog.html');
+      }).map(function (l) {
         if (l.action === 'ai') {
           return '<button type="button" class="nkn-d-link nkn-d-ai" data-nkn-ai><span>' + esc(l.label) + '</span>' + ico(l.icon || 'sparkle') + '</button>';
         }
@@ -1356,6 +1360,16 @@
       link.addEventListener('mouseleave', later); panel.addEventListener('mouseleave', later);
     }
     link.addEventListener('focusin', function () { if (!mute) open(); });
+    if (!canHover) {                                  /* touch screens have no hover: a tap toggles the menu, "Shop everything" inside it opens the catalog */
+      var wasOpen = false;
+      link.addEventListener('pointerdown', function () { wasOpen = isOpen; });
+      link.addEventListener('click', function (e) {
+        if (e.detail === 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;       /* keyboard Enter / modified click keep the normal link behaviour */
+        e.preventDefault();
+        if (wasOpen) close(); else open();
+      });
+      document.addEventListener('pointerdown', function (e) { if (isOpen && !link.contains(e.target) && !panel.contains(e.target)) close(); });
+    }
     nav.addEventListener('focusout', function (e) { if (!e.relatedTarget || !(link.contains(e.relatedTarget) || panel.contains(e.relatedTarget))) later(); });
     link.addEventListener('keydown', function (e) {
       if (e.key === 'ArrowDown') { e.preventDefault(); open(); var f = panel.querySelector('a'); if (f) f.focus(); }
@@ -1427,9 +1441,11 @@
     if (pNav && pInd) indicatorApi = initIndicator(pNav, pInd);
     if (pNav) initMega(pNav);
     var accBtn = $('nkn-acc-btn'), accPanel = $('nkn-acc-panel');                /* mobile drawer: All Shop accordion */
-    if (accBtn && accPanel) accBtn.addEventListener('click', function () {
+    if (accBtn && accPanel) accBtn.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();                                    /* toggle only: never navigate from this row */
       var on = accPanel.classList.toggle('is-open');
       accBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+      if (on) setTimeout(function () { try { accPanel.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (er) {} }, 340);
     });
   }
 
