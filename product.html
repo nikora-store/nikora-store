@@ -333,11 +333,33 @@ button{font-family:inherit;cursor:pointer;}
 .nk-rich figure{margin:16px 0; width:100%;}
 .nk-rich figure img,.nk-rich img{display:block; width:100%; height:auto; border-radius:12px;}
 .nk-rich figcaption{font-size:12px; color:var(--text-faint); text-align:center; margin-top:6px;}
+
+/* ---- Description photo stack: consecutive admin images merge into ONE continuous canvas (nkStackFigures() in the script wraps each run) ----
+   centered at the full width of the info column, zero gaps / borders / margins between photos, first photo = rounded top corners,
+   last photo = rounded bottom corners, every middle photo = sharp 0px edges. Float / width classes from the editor are ignored inside a stack. */
+.nk-rich .nk-stack{--nk-stack-r:16px; display:block; width:100%; max-width:100%; margin:18px auto; padding:0; border:0; overflow:hidden; border-radius:var(--nk-stack-r); isolation:isolate;}
+.nk-rich .nk-stack > figure{float:none !important; width:100% !important; max-width:100% !important; margin:0 !important; padding:0; border:0; border-radius:0; overflow:hidden; display:block;}
+.nk-rich .nk-stack > figure:first-child{border-top-left-radius:var(--nk-stack-r); border-top-right-radius:var(--nk-stack-r);}
+.nk-rich .nk-stack > figure:last-child{border-bottom-left-radius:var(--nk-stack-r); border-bottom-right-radius:var(--nk-stack-r);}
+.nk-rich .nk-stack img{display:block; width:100%; max-width:100%; height:auto; margin:0; padding:0; border:0; border-radius:0; vertical-align:top;}
+/* photo description: always visible, constrained to 3 lines with a soft fade until "Read more" is pressed */
+.nk-rich .nk-stack figcaption{margin:0; padding:14px 18px 16px; text-align:left; font-size:13px; line-height:1.6; color:var(--text-soft); background:var(--surface-tint);}
+.nk-cap-body{overflow:hidden; transition:max-height .35s cubic-bezier(.4,0,.2,1);}
+.nk-cap.is-clamped:not(.is-open) .nk-cap-body{-webkit-mask-image:linear-gradient(to bottom,#000 55%,transparent); mask-image:linear-gradient(to bottom,#000 55%,transparent);}
+.nk-cap-toggle{display:inline-flex; align-items:center; gap:6px; margin:8px 0 0; padding:4px 0; background:none; border:0; cursor:pointer; font-family:inherit; font-size:12.5px; font-weight:600; line-height:1; letter-spacing:.02em; color:var(--gold); -webkit-tap-highlight-color:transparent;}
+.nk-cap-toggle[hidden]{display:none;}
+.nk-cap-toggle svg{width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; transition:transform .3s cubic-bezier(.4,0,.2,1);}
+.nk-cap.is-open .nk-cap-toggle svg{transform:rotate(180deg);}
+.nk-cap-toggle:hover .nk-cap-label{text-decoration:underline; text-underline-offset:3px;}
+.nk-cap-toggle:focus-visible{outline:2px solid var(--gold); outline-offset:3px; border-radius:4px;}
+@media (prefers-reduced-motion:reduce){ .nk-cap-body,.nk-cap-toggle svg{transition:none;} }
 .nk-rich .nk-a-left{float:left; margin:4px 18px 10px 0;}
 .nk-rich .nk-a-right{float:right; margin:4px 0 10px 18px;}
 .nk-rich .nk-a-center{margin-left:auto; margin-right:auto; float:none;}
 .nk-rich .nk-w-25{width:25%;} .nk-rich .nk-w-33{width:33%;} .nk-rich .nk-w-50{width:50%;} .nk-rich .nk-w-75{width:75%;} .nk-rich .nk-w-100{width:100%;}
 @media (max-width:600px){
+  .nk-rich .nk-stack{--nk-stack-r:14px; margin:14px 0;}
+  .nk-rich .nk-stack figcaption{padding:12px 14px 14px;}
   .nk-rich .nk-a-left,.nk-rich .nk-a-right{float:none; margin:14px 0;}          /* floats stack full-width on phones */
   .nk-rich .nk-w-25,.nk-rich .nk-w-33,.nk-rich .nk-w-50{width:100%;}
 }
@@ -1380,8 +1402,35 @@ function cleanRich(html){
     });
   })(doc.body);
   Array.prototype.slice.call(doc.body.querySelectorAll('figure')).forEach(function(f){ if(!f.querySelector('img')) f.parentNode.removeChild(f); });
+  nkStackFigures(doc.body);
   return doc.body.innerHTML.trim();
 }
+/* Wraps every run of consecutive top-level <figure>s (blank paragraphs / <br> between them are dropped) into one <div class="nk-stack">,
+   so the CSS can merge them into a single seamless canvas with rounded outer corners only. */
+function nkStackFigures(body){
+  function blank(n){
+    if(n.nodeType === 3) return !n.textContent.trim();
+    return n.nodeType === 1 && (n.tagName === 'BR' || (n.tagName === 'P' && !n.textContent.trim() && !n.querySelector('img')));
+  }
+  var run = [], gap = [];
+  function flush(){
+    if(run.length){
+      var st = body.ownerDocument.createElement('div'); st.className = 'nk-stack';
+      body.insertBefore(st, run[0]);
+      run.forEach(function(f){ st.appendChild(f); });
+    }
+    run = []; gap = [];
+  }
+  Array.prototype.slice.call(body.childNodes).forEach(function(n){
+    if(n.nodeType === 1 && n.tagName === 'FIGURE'){
+      gap.forEach(function(g){ if(g.parentNode) g.parentNode.removeChild(g); });
+      gap = []; run.push(n);
+    } else if(run.length && blank(n)){ gap.push(n); }
+    else { flush(); }
+  });
+  flush();
+}
+
 /* Rich panel markup, or '' when the product has no rich text (the caller then keeps the plain-text panel). */
 function richPanelHtml(raw){
   var clean = cleanRich(raw);
@@ -1392,8 +1441,76 @@ function watchRichImages(root){
   Array.prototype.forEach.call(root.querySelectorAll('.nk-rich img'), function(img){
     if(img.complete) return;
     img.addEventListener('load', refreshAccordionHeights, { once: true });
-    img.addEventListener('error', function(){ var f = img.closest('figure') || img; if(f.parentNode) f.parentNode.removeChild(f); refreshAccordionHeights(); }, { once: true });
+    img.addEventListener('error', function(){
+      var f = img.closest('figure') || img, st = f.parentNode;
+      if(st) st.removeChild(f);
+      if(st && st.classList && st.classList.contains('nk-stack') && !st.children.length && st.parentNode) st.parentNode.removeChild(st);   /* a failed photo never leaves an empty stack behind */
+      refreshAccordionHeights();
+    }, { once: true });
   });
+}
+
+/* ---- photo descriptions: collapsed to ~3 lines with a "Read more" toggle (only added when the text really overflows) ---- */
+var nkCapSeq = 0;
+function nkTrackPanel(ms){                                   /* keeps the open accordion panel's height in step while a caption animates */
+  var t0 = Date.now();
+  (function tick(){ refreshAccordionHeights(); if(Date.now() - t0 < ms) requestAnimationFrame(tick); })();
+}
+function nkCapLimit(body){
+  var cs = getComputedStyle(body), lh = parseFloat(cs.lineHeight);
+  if(!isFinite(lh)) lh = (parseFloat(cs.fontSize) || 13) * 1.6;
+  return Math.round(lh * 3);
+}
+function nkMeasureCaption(cap){
+  var body = cap.querySelector('.nk-cap-body'), btn = cap.querySelector('.nk-cap-toggle');
+  if(!body || !btn || cap.classList.contains('is-open')) return;
+  body.style.maxHeight = '';
+  var limit = nkCapLimit(body);
+  if(body.scrollHeight > limit + 2){
+    cap.classList.add('is-clamped'); btn.hidden = false; body.style.maxHeight = limit + 'px';
+  } else {
+    cap.classList.remove('is-clamped'); btn.hidden = true;                    /* short description: shown in full, no toggle */
+  }
+}
+function nkMeasureCaptions(root){
+  Array.prototype.forEach.call((root || document).querySelectorAll('.nk-cap'), nkMeasureCaption);
+  refreshAccordionHeights();
+}
+function nkToggleCaption(cap){
+  var body = cap.querySelector('.nk-cap-body'), btn = cap.querySelector('.nk-cap-toggle'), label = btn.querySelector('.nk-cap-label');
+  var opening = !cap.classList.contains('is-open');
+  if(opening){
+    cap.classList.add('is-open'); btn.setAttribute('aria-expanded', 'true'); label.textContent = 'Show less';
+    body.style.maxHeight = body.scrollHeight + 'px';
+    body.addEventListener('transitionend', function done(e){ if(e.target !== body) return; body.removeEventListener('transitionend', done); if(cap.classList.contains('is-open')) body.style.maxHeight = 'none'; });
+  } else {
+    body.style.maxHeight = body.scrollHeight + 'px';                           /* pin the current height so the collapse can animate from it */
+    void body.offsetHeight;
+    cap.classList.remove('is-open'); btn.setAttribute('aria-expanded', 'false'); label.textContent = 'Read more';
+    body.style.maxHeight = nkCapLimit(body) + 'px';
+  }
+  nkTrackPanel(450);
+}
+function nkInitPhotoCaptions(root){
+  Array.prototype.forEach.call(root.querySelectorAll('.nk-stack figcaption'), function(cap){
+    if(cap.getAttribute('data-nk-cap')) return;
+    cap.setAttribute('data-nk-cap', '1'); cap.classList.add('nk-cap');
+    var body = document.createElement('div'); body.className = 'nk-cap-body'; body.id = 'nk-cap-' + (++nkCapSeq);
+    while(cap.firstChild) body.appendChild(cap.firstChild);
+    cap.appendChild(body);
+    var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'nk-cap-toggle'; btn.hidden = true;
+    btn.setAttribute('aria-expanded', 'false'); btn.setAttribute('aria-controls', body.id);
+    btn.innerHTML = '<span class="nk-cap-label">Read more</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+    btn.addEventListener('click', function(){ nkToggleCaption(cap); });
+    cap.appendChild(btn);
+  });
+  nkMeasureCaptions(root);
+  if(!window.__nkCapBound){
+    window.__nkCapBound = true;
+    var rt = 0;
+    window.addEventListener('resize', function(){ clearTimeout(rt); rt = setTimeout(function(){ nkMeasureCaptions(document); }, 150); });
+    if(document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ nkMeasureCaptions(document); });
+  }
 }
 
 function escapeHtml(str){
@@ -1509,6 +1626,7 @@ function renderProduct(){
   sciPanel.innerHTML = richPanelHtml(p.descHtml) || benefitsPanelHtml(p);
   howPanel.innerHTML = richPanelHtml(p.howtoHtml) || ('<ol>' + getHowTo(p).map(function(t){ return '<li>' + escapeHtml(t) + '</li>'; }).join('') + '</ol>');
   watchRichImages(sciPanel); watchRichImages(howPanel);
+  nkInitPhotoCaptions(sciPanel); nkInitPhotoCaptions(howPanel);
   document.getElementById('panel-shipping').innerHTML = getShipping(p).map(function(t){ return '<p>' + escapeHtml(t) + '</p>'; }).join('');
   if(window.NKShipping && NKShipping.learn) NKShipping.learn([p]);   /* remember this product's shipping group for the cart on other pages */
   var shipEl = document.getElementById('ship-est'), shipTxt = window.NKShipping && NKShipping.cardLine(p);
