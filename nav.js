@@ -913,6 +913,8 @@
     c = c || {};
     var text = (typeof c.announcement_text === 'string') ? c.announcement_text.trim().slice(0, 300) : '';
     var live = c.announcement_enabled !== false && !!text && annScheduled(c, Date.now());
+    var hol = (window.NKShipping && window.NKShipping.promoText) ? window.NKShipping.promoText() : '';   // holiday message from admin "Holiday themes & shipping" (shipping-rules.js); replaces the announcement text
+    if (hol) { text = hol; live = true; }
     return {
       ann:  live ? text : '',
       annOpt: {
@@ -1104,6 +1106,7 @@
   }
   function startSite() {
     openStream();
+    document.addEventListener('nk:shipping-config', function () { applySite(sitePick(SITE_DATA)); });   // threshold / holiday text changed in the admin: repaint the top bar at once
     setInterval(function () { applySite(sitePick(SITE_DATA)); }, 30000);   // the bar switches on/off by itself when announcement_start / announcement_end pass
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { if (SITE_LAST_PICK && SITE_LAST_PICK.annOpt.marquee) { bindMarq(); fitMarquee(); } });
     else if (SITE_LAST_PICK && SITE_LAST_PICK.annOpt.marquee) { bindMarq(); fitMarquee(); }
@@ -1150,6 +1153,8 @@
     else if (script && script.parentNode && script.parentNode !== document.head) { script.insertAdjacentHTML('beforebegin', HTML); }
     else { document.body.insertAdjacentHTML('afterbegin', HTML); }
     wire();
+    loadShipping();
+    loadHolidays();
     loadAnimations();
     loadConsent();
     loadMascot();
@@ -1197,6 +1202,20 @@
     var el = document.createElement('script');
     el.id = 'nkai-loader'; el.async = true; el.src = base + 'ai-assistant.js';
     (document.head || document.documentElement).appendChild(el);
+  }
+  /* shared shipping settings (threshold, free-for-all mode, holiday message): shipping-rules.js, same folder as nav.js */
+  function loadShipping() {
+    if (window.NKShipping || document.getElementById('nk-ship-loader') || document.querySelector('script[src*="shipping-rules"]')) return;
+    var el = document.createElement('script');
+    el.id = 'nk-ship-loader'; el.async = true; el.src = baseUrl() + 'shipping-rules.js?v=20261114';
+    (document.head || document.documentElement).appendChild(el);
+  }
+  /* holiday themes (admin-controlled): holiday-themes.css + holiday-themes.js, same folder as nav.js */
+  function loadHolidays() {
+    if (window.NKHoliday || document.getElementById('nk-holiday-loader') || document.querySelector('script[src*="holiday-themes"]')) return;
+    var head = document.head || document.documentElement;
+    var css = document.createElement('link'); css.id = 'nk-holiday-css'; css.rel = 'stylesheet'; css.href = baseUrl() + 'holiday-themes.css?v=20261114'; head.appendChild(css);
+    var el = document.createElement('script'); el.id = 'nk-holiday-loader'; el.async = true; el.src = baseUrl() + 'holiday-themes.js?v=20261114'; head.appendChild(el);
   }
   /* scroll reveal, radial theme transition, smooth <details> / FAQ: one stand-alone file, loaded from the same folder as nav.js */
   function loadAnimations() {
