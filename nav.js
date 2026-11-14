@@ -255,7 +255,7 @@
         ] },
         { title: 'K-Beauty Skincare', links: [
           { label: 'Toners & Essences',     desc: 'Hydrating prep steps',        href: 'catalog.html?category=toners-essences' },
-          { label: 'Serums & Ampoules',     desc: 'Targeted K-Beauty actives',   href: 'catalog.html?category=serums-skincare' },
+          { label: 'Serums & Ampoules',     desc: 'Targeted K-Beauty actives',   href: 'catalog.html?category=serums-ampoules' },
           { label: 'Moisturizers',          desc: 'Cushiony barrier support',    href: 'catalog.html?category=moisturizers' },
           { label: 'Sun Care',              desc: 'Daily SPF50+ protection',     href: 'catalog.html?category=sun-care' },
           { label: 'Masks & Lip Care',      desc: 'Overnight and weekly treats', href: 'catalog.html?category=masks-lip-care' }
