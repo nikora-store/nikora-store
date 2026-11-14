@@ -14,11 +14,21 @@
  *   Products added later in the admin panel: set the category to a device category ("Facial Wand", "Cooling Therapy", "Beauty Tech & Masks")
  *   or tick shipFrom = 'us' and they are picked up automatically. Anything else is treated as K-Beauty skincare.
  *
+ * LIVE SETTINGS (admin -> Site settings & CMS -> "Holiday themes & shipping", saved in Firebase /site_content):
+ *   shipping_mode            '' / 'threshold'  = free over the threshold, otherwise the flat rate   |   'free_all' = free Express shipping on every order
+ *   shipping_threshold       the free-shipping minimum in dollars (default 50)
+ *   holiday_text_enabled     true = the top announcement bar shows the holiday message below (replaces announcement_text)
+ *   holiday_text_preset      id of a preset message (see NKShipping.PRESETS)  |  holiday_text_custom = own text, wins over the preset.
+ *                            Tokens: {ship} "free Express shipping on orders of $50 or more", {Ship} (capitalised), {threshold} "$50", {flat} "$4.99"
+ * Every part of the storefront reads these through this file: cart drawer (renderProgress), top bar (nav.js -> promoText), checkout (cost, checkoutSub),
+ * product pages (productLine). Any element can also follow the settings with <span data-nk-ship="headline|sentence|threshold|badge|checkout|promo"></span>.
+ * Server code can call NKShipping.configure(siteContentObject) and then NKShipping.cost(amount).
+ *
  * Keep these numbers identical to the server's own shipping calculation (the checkout API), which is the amount actually charged.
  */
 (function (root) {
   'use strict';
-  var FREE_AT = 50, FLAT = 4.99;
+  var FREE_AT = 50, FLAT = 4.99, MODE = 'threshold';   /* FREE_AT and MODE follow the admin settings (see LIVE SETTINGS) */
   var SUPPLIERS = {
     us: { name: 'US Warehouse', source: 'QKsource', what: 'hardware & devices', hub: 'United States Warehouse', origin: 'United States (US to US fulfillment)', process: [1, 3], transit: [3, 7], carriers: 'US express carriers' },
     dk: { name: 'Delivered Korea', what: 'K-Beauty skincare', hub: 'Suite A03231, Busan Hub', origin: 'Busan, South Korea', process: [2, 4], transit: [5, 10], carriers: 'FedEx, DHL or K-Packet' }
@@ -67,8 +77,11 @@
     return ['dk'];
   }
   function groupsOf(it) { return classify(it); }
-  /** Shipping fee for a payable amount (after discount): 0 from $50.00, else 4.99. Cent-exact. */
-  function cost(amount) { return Math.round((Number(amount) || 0) * 100) >= FREE_AT * 100 ? 0 : FLAT; }
+  /** Shipping fee for a payable amount (after discount): 0 from the threshold (or always in free_all mode), else 4.99. Cent-exact. */
+  function cost(amount) {
+    if (MODE === 'free_all') return 0;
+    return Math.round((Number(amount) || 0) * 100) >= Math.round(FREE_AT * 100) ? 0 : FLAT;
+  }
   /** Package keys needed by a list of cart items, in fixed order ['us','dk']; [] for an empty cart. */
   function packagesOf(items) {
     if (!items || !items.length) return [];
@@ -109,7 +122,7 @@
   }
   /** Product page "Shipping Details" policy text. */
   function productLine(it) {
-    var g = classify(it), fee = 'Express shipping is FREE on orders of ' + money(FREE_AT) + '+, otherwise a ' + money(FLAT) + ' flat rate per order.';
+    var g = classify(it), fee = feeLine();
     var us = 'Ships from our United States warehouse (US to US fulfillment): ' + terms('us') + '.';
     var dk = 'Ships from our Busan Hub (' + SUPPLIERS.dk.name + '): ' + terms('dk') + ' (' + SUPPLIERS.dk.carriers + ').';
     if (g.length > 1) return 'This set ships in 2 separate packages, each with its own tracking number. ' + us + ' ' + dk + ' ' + fee;
@@ -125,20 +138,137 @@
   /** Updates a cart drawer's free-shipping progress (text + bar + fulfilment note). payable = subtotal after discount. */
   function renderProgress(textEl, fillEl, payable, count, items, icons) {
     if (!textEl || !fillEl) return;
-    var cents = Math.round((Number(payable) || 0) * 100), thr = FREE_AT * 100;
-    var unlocked = cents >= thr, pct = Math.min(100, Math.round(cents / thr * 100));
+    var all = MODE === 'free_all';
+    var cents = Math.round((Number(payable) || 0) * 100), thr = Math.round(FREE_AT * 100);
+    var unlocked = all || cents >= thr, pct = all ? 100 : Math.min(100, Math.round(cents / thr * 100));
     fillEl.style.width = pct + '%';
     textEl.classList.toggle('unlocked', unlocked);
     fillEl.classList.toggle('unlocked', unlocked);
     var bar = fillEl.parentNode;
-    if (bar) { bar.setAttribute('role', 'progressbar'); bar.setAttribute('aria-valuemin', '0'); bar.setAttribute('aria-valuemax', '100'); bar.setAttribute('aria-valuenow', String(pct)); bar.setAttribute('aria-label', 'Progress toward free Express shipping'); }
-    var msg = unlocked ? 'You\u2019ve unlocked FREE Express Shipping!'
-      : (count > 0 ? 'Add ' + money((thr - cents) / 100) + ' more to unlock FREE Express Shipping (otherwise ' + money(FLAT) + ' flat rate)'
-        : 'FREE Express Shipping on orders of ' + money(FREE_AT) + '+ \u00b7 ' + money(FLAT) + ' flat rate below');
+    if (bar) { bar.setAttribute('role', 'progressbar'); bar.setAttribute('aria-valuemin', '0'); bar.setAttribute('aria-valuemax', '100'); bar.setAttribute('aria-valuenow', String(pct)); bar.setAttribute('aria-label', all ? 'Free Express shipping on every order' : 'Progress toward free Express shipping'); }
+    var msg = all ? (count > 0 ? 'You\u2019ve unlocked FREE Express Shipping \u2014 free on every order!' : headline())
+      : unlocked ? 'You\u2019ve unlocked FREE Express Shipping!'
+      : (count > 0 ? 'Add ' + money((thr - cents) / 100) + ' more to unlock FREE Express Shipping (otherwise ' + money(FLAT) + ' flat rate)' : headline());
     textEl.innerHTML = (icons ? icons[unlocked ? 'check' : 'truck'] : '') + msg;
     var note = document.getElementById('ship-split-note');
     if (!note && textEl.parentNode && bar) { note = document.createElement('div'); note.id = 'ship-split-note'; note.className = 'ship-split-note'; textEl.parentNode.insertBefore(note, bar.nextSibling); }
     if (note) { var t = count > 0 ? cartNote(items) : ''; note.textContent = t; note.hidden = !t; }
+  }
+
+  /* ---------------- live settings from the admin (Firebase /site_content) ---------------- */
+  var CFG_KEY = 'nk_ship_cfg_v1';
+  var SITE_KEYS = ['shipping_mode', 'shipping_threshold', 'holiday_text_enabled', 'holiday_text_preset', 'holiday_text_custom'];
+  var PRESETS = [        /* [id, label, text]  -  keep in sync with the list in the admin's "Holiday themes & shipping" panel */
+    ['', 'Default shipping message', '{Ship}.'],
+    ['winter', 'Winter sale', 'Winter wonderland sale \u2014 {ship}.'],
+    ['newyear', 'New Year', 'Happy New Year from NIKORA \u2014 {ship}. Start the year glowing.'],
+    ['blackfriday', 'Black Friday', 'Black Friday is here \u2014 our best offers of the year, plus {ship}.'],
+    ['cybermonday', 'Cyber Monday', 'Cyber Monday \u2014 last chance for our best offers, plus {ship}.'],
+    ['valentines', 'Valentine\u2019s Day', 'Give the gift of glow this Valentine\u2019s Day \u2014 {ship}.'],
+    ['halloween', 'Halloween', 'Treat your skin this Halloween \u2014 {ship}.'],
+    ['autumn', 'Autumn', 'Cozy autumn glow \u2014 {ship}.'],
+    ['spring', 'Spring / Cherry blossom', 'Spring glow-up is here \u2014 fresh offers and {ship}.'],
+    ['holiday', 'Happy holidays', 'Happy holidays from NIKORA \u2014 {ship}.']
+  ];
+  var cfg = { mode: 'threshold', threshold: 50, holidayText: false, preset: '', custom: '' }, cfgKey = '', siteRaw = {}, draftRaw = {};
+
+  function moneyShort(n) { n = Number(n) || 0; return '$' + (Math.round(n) === n ? String(n) : n.toFixed(2)); }
+  /** "free Express shipping on orders of $50 or more"  /  "free Express shipping on every order" */
+  function sentence(cap) {
+    var t = MODE === 'free_all' ? 'free Express shipping on every order' : 'free Express shipping on orders of ' + moneyShort(FREE_AT) + ' or more';
+    return cap ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+  }
+  function headline() { return MODE === 'free_all' ? 'FREE Express Shipping on every order' : 'FREE Express Shipping on orders of ' + money(FREE_AT) + '+ \u00b7 ' + money(FLAT) + ' flat rate below'; }
+  function feeLine() { return MODE === 'free_all' ? 'Express shipping is FREE on every order.' : 'Express shipping is FREE on orders of ' + money(FREE_AT) + '+, otherwise a ' + money(FLAT) + ' flat rate per order.'; }
+  function checkoutSub() {
+    return 'Complete your order in just a couple of minutes. ' + (MODE === 'free_all' ? 'Free Express shipping on every order.' : 'Free Express shipping on orders of ' + money(FREE_AT) + ' and above, a flat ' + money(FLAT) + ' below that.');
+  }
+  function badgeLine() { return MODE === 'free_all' ? 'Free on every order' : 'Free on orders of ' + moneyShort(FREE_AT) + '+, flat ' + money(FLAT) + ' below'; }
+  function fill(t) {
+    return String(t).replace(/\{Ship\}/g, sentence(true)).replace(/\{ship\}/g, sentence(false)).replace(/\{threshold\}/g, moneyShort(FREE_AT)).replace(/\{flat\}/g, money(FLAT));
+  }
+  /** The holiday message for the top announcement bar ('' when the admin has it switched off). */
+  function promoText() {
+    if (!cfg.holidayText) return '';
+    var t = cfg.custom;
+    if (!t) { for (var i = 0; i < PRESETS.length; i++) if (PRESETS[i][0] === cfg.preset) { t = PRESETS[i][2]; break; } }
+    return fill(t || PRESETS[0][2]).slice(0, 300);
+  }
+  function paintHooks() {
+    if (typeof document === 'undefined' || !document.querySelectorAll) return;
+    var list = document.querySelectorAll('[data-nk-ship]');
+    for (var i = 0; i < list.length; i++) {
+      var k = list[i].getAttribute('data-nk-ship'), v = k === 'headline' ? headline() : k === 'sentence' ? sentence(true) + '.' : k === 'threshold' ? moneyShort(FREE_AT)
+        : k === 'badge' ? badgeLine() : k === 'checkout' ? checkoutSub() : k === 'promo' ? (promoText() || headline()) : null;
+      if (v != null && list[i].textContent !== v) list[i].textContent = v;
+    }
+  }
+  function announce() { try { document.dispatchEvent(new CustomEvent('nk:shipping-config', { detail: config() })); } catch (e) {} }
+  function config() { return JSON.parse(JSON.stringify(cfg)); }
+  function recompute(silent) {
+    var c = {}, k;
+    for (k in siteRaw) c[k] = siteRaw[k];
+    for (k in draftRaw) c[k] = draftRaw[k];
+    var n = Number(c.shipping_threshold);
+    var next = {
+      mode: c.shipping_mode === 'free_all' ? 'free_all' : 'threshold',
+      threshold: (isFinite(n) && n >= 1 && n <= 1000) ? Math.round(n * 100) / 100 : 50,
+      holidayText: c.holiday_text_enabled === true || c.holiday_text_enabled === 'true',
+      preset: typeof c.holiday_text_preset === 'string' ? c.holiday_text_preset : '',
+      custom: typeof c.holiday_text_custom === 'string' ? c.holiday_text_custom.trim().slice(0, 300) : ''
+    };
+    var key = JSON.stringify(next);
+    if (key === cfgKey) return;
+    cfgKey = key; cfg = next; MODE = next.mode; FREE_AT = next.threshold;
+    paintHooks();
+    if (!silent) announce();
+  }
+  /** Feed in the raw /site_content object (or any object holding the keys above). */
+  function setSite(c) {
+    var next = {};
+    c = c || {};
+    SITE_KEYS.forEach(function (k) { if (c[k] != null && c[k] !== '') next[k] = c[k]; });
+    if (JSON.stringify(next) === JSON.stringify(siteRaw)) return;
+    siteRaw = next;
+    try { root.localStorage.setItem(CFG_KEY, JSON.stringify(siteRaw)); } catch (e) {}
+    recompute();
+  }
+  function restLoad() {                                  /* fallback when nav.js (NikoraSite) is not on the page */
+    if (typeof fetch !== 'function' || typeof Promise === 'undefined') return;
+    var base = 'https://nikora-store-default-rtdb.firebaseio.com/site_content.json?orderBy=' + encodeURIComponent('"$key"');
+    Promise.all(['shipping_', 'holiday_text_'].map(function (p) {
+      return fetch(base + '&startAt=' + encodeURIComponent('"' + p + '"') + '&endAt=' + encodeURIComponent('"' + p + '\uf8ff"'), { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+    })).then(function (parts) {
+      var all = {}, got = false;
+      parts.forEach(function (o) { if (o && typeof o === 'object') { got = true; for (var k in o) all[k] = o[k]; } });
+      if (got) setSite(all);
+    });
+  }
+  function onConfig(fn) {
+    if (typeof fn !== 'function' || typeof document === 'undefined') return function () {};
+    var h = function (e) { try { fn(e.detail || config()); } catch (err) {} };
+    document.addEventListener('nk:shipping-config', h);
+    return function () { document.removeEventListener('nk:shipping-config', h); };
+  }
+  function startLive() {
+    try { siteRaw = JSON.parse(root.localStorage.getItem(CFG_KEY) || '{}') || {}; } catch (e) { siteRaw = {}; }
+    recompute(true);                                     /* first paint from the last known settings */
+    var tries = 0;
+    (function hook() {
+      if (root.NikoraSite && root.NikoraSite.onChange) { root.NikoraSite.onChange(setSite); return; }   /* nav.js keeps /site_content live */
+      if (++tries < 40) { setTimeout(hook, 150); return; }
+      restLoad(); setInterval(restLoad, 60000);
+    })();
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { paintHooks(); announce(); });
+    else { paintHooks(); setTimeout(announce, 0); }
+    /* the admin's live preview sends unsaved edits with postMessage({type:'nk:field', key, value}) */
+    root.addEventListener('message', function (e) {
+      var m = e && e.data;
+      if (!m || m.type !== 'nk:field' || typeof m.key !== 'string' || SITE_KEYS.indexOf(m.key) < 0) return;
+      try { if (root.parent === root || e.source !== root.parent) return; } catch (x) { return; }
+      draftRaw[m.key] = m.value; recompute();
+    });
   }
 
   if (typeof document !== 'undefined') {
@@ -147,8 +277,14 @@
       '.nk-card .nk-ship{margin:-6px 0 12px;font-size:11px;line-height:1.4;color:var(--text-faint,#8a8493)}';
     (document.head || document.documentElement).appendChild(st);
   }
-  root.NKShipping = { FREE_AT: FREE_AT, FLAT: FLAT, SUPPLIERS: SUPPLIERS, MAP: MAP, cost: cost, suppliersOf: suppliersOf, packagesOf: packagesOf, shipmentsOf: shipmentsOf, groupsOf: groupsOf,
+  root.NKShipping = { FLAT: FLAT, SUPPLIERS: SUPPLIERS, MAP: MAP, cost: cost, suppliersOf: suppliersOf, packagesOf: packagesOf, shipmentsOf: shipmentsOf, groupsOf: groupsOf,
     total: total, range: rng, terms: terms, badge: badge, processText: processText, learn: learn, multiPackageNotice: multiPackageNotice,
-    cardLine: cardLine, productLine: productLine, cartNote: cartNote, pipelineShort: pipelineShort, renderProgress: renderProgress };
+    cardLine: cardLine, productLine: productLine, cartNote: cartNote, pipelineShort: pipelineShort, renderProgress: renderProgress,
+    config: config, configure: setSite, onConfig: onConfig, promoText: promoText, headline: headline, sentence: sentence, checkoutSub: checkoutSub, badgeLine: badgeLine,
+    feeLine: feeLine, moneyShort: moneyShort, PRESETS: PRESETS, SITE_KEYS: SITE_KEYS };
+  Object.defineProperty(root.NKShipping, 'FREE_AT', { enumerable: true, get: function () { return FREE_AT; } });
+  Object.defineProperty(root.NKShipping, 'MODE', { enumerable: true, get: function () { return MODE; } });
+  Object.defineProperty(root.NKShipping, 'freeAll', { enumerable: true, get: function () { return MODE === 'free_all'; } });
+  if (typeof document !== 'undefined' && root.addEventListener) startLive();
   if (typeof module !== 'undefined' && module.exports) module.exports = root.NKShipping;
 })(typeof window !== 'undefined' ? window : this);
