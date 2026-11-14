@@ -176,6 +176,7 @@ h1.hero-title .accent{font-style:italic; color:var(--gold);}
   z-index:2;
 }
 .hero-specs .spec-sep{color:var(--text-faint); font-weight:400;}
+.hero-specs[hidden]{display:none !important;}   /* badge bar switched off, or every badge empty: no pill, no gap */
 
 /* ---------------- SECTION HEADERS ---------------- */
 .section{padding:clamp(60px,8vw,100px) 0;}
@@ -655,7 +656,7 @@ footer.site{border-top:1px solid var(--line); padding:60px 0 30px; margin-top:20
       <div class="hero-visual">
         <!-- Default hero (a soft champagne gradient) shows until /site_content/hero_image_url has a URL. Swap this src for a hosted photo if you like. -->
         <img class="product-card-img" id="hero-image" alt="NIKORA hero" decoding="async" fetchpriority="high" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 1000'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23EFE7DC'/><stop offset='1' stop-color='%23C89B54' stop-opacity='.55'/></linearGradient><radialGradient id='r' cx='.5' cy='.42' r='.45'><stop offset='0' stop-color='%23ffffff' stop-opacity='.7'/><stop offset='1' stop-color='%23ffffff' stop-opacity='0'/></radialGradient></defs><rect width='800' height='1000' fill='url(%23g)'/><rect width='800' height='1000' fill='url(%23r)'/></svg>">
-        <div class="hero-specs">
+        <div class="hero-specs" id="hero-specs">
           <span>4-in-1 Device</span>
           <span class="spec-sep">•</span>
           <span>Red Light + EMS</span>
@@ -1560,6 +1561,51 @@ function nkHeroTitleRender(el, text){
     });
   });
 }
+/* ---------- hero feature badges (the pill at the bottom of the hero photo) ----------
+   Firebase /site_content:  hero_badges_enabled (false hides the whole pill)  +  hero_feature_1 .. hero_feature_5 (text; an empty slot is skipped).
+   Never configured = the three built-in badges below. Painted from the last cached copy first, so nothing jumps when Firebase answers. */
+var NK_BADGE_DEFAULTS = ['4-in-1 Device', 'Red Light + EMS', '5-Minute Routine'];
+var NK_BADGE_KEYS = ['hero_badges_enabled', 'hero_feature_1', 'hero_feature_2', 'hero_feature_3', 'hero_feature_4', 'hero_feature_5'];
+var nkBadgeBase = {}, nkBadgeDraft = {};
+function nkBadgeList(c){
+  c = c || {};
+  if(c.hero_badges_enabled === false || c.hero_badges_enabled === 'false') return [];
+  var list = [], any = false;
+  for(var i = 1; i <= 5; i++){
+    var v = c['hero_feature_' + i];
+    if(v != null) any = true;
+    if(typeof v === 'string' && v.trim()) list.push(v.trim().slice(0, 40));
+  }
+  return any ? list : NK_BADGE_DEFAULTS.slice();
+}
+function nkApplyHeroBadges(c){
+  var box = document.getElementById('hero-specs'); if(!box) return;
+  var list = nkBadgeList(c), sig = JSON.stringify(list);
+  if(box.getAttribute('data-sig') === sig) return;
+  box.setAttribute('data-sig', sig);
+  box.textContent = '';
+  list.forEach(function(t, i){
+    if(i){ var sp = document.createElement('span'); sp.className = 'spec-sep'; sp.setAttribute('aria-hidden', 'true'); sp.textContent = '\u2022'; box.appendChild(sp); }
+    var s = document.createElement('span'); s.textContent = t; box.appendChild(s);
+  });
+  box.hidden = !list.length;
+}
+function nkBadgeMerged(){ var c = {}, k; for(k in nkBadgeBase) c[k] = nkBadgeBase[k]; for(k in nkBadgeDraft) c[k] = nkBadgeDraft[k]; return c; }
+function nkBadgeSet(c){                                   /* real data from Firebase: apply + remember for the next visit */
+  var keep = {}; c = c || {};
+  NK_BADGE_KEYS.forEach(function(k){ if(c[k] != null) keep[k] = c[k]; });
+  nkBadgeBase = keep;
+  try{ localStorage.setItem('nikora_hero_badges', JSON.stringify(keep)); }catch(e){}
+  nkApplyHeroBadges(nkBadgeMerged());
+}
+(function(){ try{ var v = JSON.parse(localStorage.getItem('nikora_hero_badges') || 'null'); if(v && typeof v === 'object'){ nkBadgeBase = v; } }catch(e){} })();
+/* admin live preview: unsaved edits arrive from the admin window as postMessage({type:'nk:field', key, value}) */
+window.addEventListener('message', function(e){
+  var m = e && e.data;
+  if(!m || m.type !== 'nk:field' || NK_BADGE_KEYS.indexOf(m.key) < 0) return;
+  try{ if(window.parent === window || e.source !== window.parent) return; }catch(x){ return; }
+  nkBadgeDraft[m.key] = m.value; nkApplyHeroBadges(nkBadgeMerged());
+});
 function nkApplyHeroText(c){
   c = c || {};
   var ids = { title: 'hero-title', sub: 'hero-sub', p: 'hero-cta-primary', pt: 'hero-cta-primary-text', s: 'hero-cta-secondary', st: 'hero-cta-secondary-text' };
@@ -1583,11 +1629,13 @@ function nkApplyHeroText(c){
   nkHeroStatsOverride = (c.hero_stats_auto === false && isFinite(rating) && rating > 0 && rating <= 5 && isFinite(count) && count >= 0 && c.hero_review_count != null)
     ? { rating: rating, count: Math.floor(count), label: str(c.hero_badge_label, 60) } : null;
   nkUpdateHeroProof(nkHeroLastStats);
+  nkBadgeSet(c);
 }
 
 function initHeroImage(){
   var img = document.getElementById('hero-image');
   if(img) NK_HERO_DEFAULT = img.getAttribute('src') || '';
+  nkApplyHeroBadges(nkBadgeMerged());                    /* badges from the last known settings (no flash when they are hidden) */
   nkHeroSrc.cms = nkHeroCacheGet();                      /* instant paint from the last known image */
   nkApplyHeroImage();
   nkImgFieldBind('hero', 1600);
