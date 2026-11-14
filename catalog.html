@@ -1204,10 +1204,17 @@ function nkIsBundle(p){ return nkRoleOf(p) === 'bundle' || /bundle/i.test(String
 var CAT_ALIASES = {
   'led-masks':       { label:'LED Masks',            test:function(p){ return nkIsDevice(p) && /\bled\b|light[\s-]*therapy|red[\s-]*light/i.test(nkText(p)); } },
   'microcurrent':    { label:'Microcurrent Devices', test:function(p){ return nkIsDevice(p) && /microcurrent|\bems\b|electroporation|wand/i.test(nkText(p)); } },
-  'serums-skincare': { label:'Serums & Skincare',    test:function(p){ return !nkIsDevice(p) && !nkIsBundle(p); } }
+  'serums-skincare': { label:'Serums & Skincare',    test:function(p){ return !nkIsDevice(p) && !nkIsBundle(p); } },
+  /* expanded header menu (nav.js groups) */
+  'cooling-tools':   { label:'Cooling & Ice Tools',  test:function(p){ return nkIsDevice(p) && /cool|\bice\b|cryo|globe|roller/i.test(nkText(p)); } },
+  'toners-essences': { label:'Toners & Essences',    test:function(p){ return !nkIsDevice(p) && !nkIsBundle(p) && /toner|essence/i.test([p.category, p.name].join(' ')); } },
+  'serums-ampoules': { label:'Serums & Ampoules',    test:function(p){ return !nkIsDevice(p) && !nkIsBundle(p) && /serum|ampoule/i.test([p.category, p.name].join(' ')); } },
+  'moisturizers':    { label:'Moisturizers',         test:function(p){ return !nkIsDevice(p) && !nkIsBundle(p) && /moisturi[sz]er|cream/i.test([p.category, p.name].join(' ')); } },
+  'sun-care':        { label:'Sun Care',             test:function(p){ return !nkIsDevice(p) && !nkIsBundle(p) && /\bsun\b|\bspf\b|sunscreen/i.test([p.category, p.name].join(' ')); } },
+  'masks-lip-care':  { label:'Masks & Lip Care',     test:function(p){ return !nkIsDevice(p) && !nkIsBundle(p) && /\bmask|\blip\b/i.test([p.category, p.name].join(' ')); } }
 };
 var CAT_SYNONYM = { 'serums-and-skincare':'serums-skincare', 'skincare':'serums-skincare', 'microcurrent-devices':'microcurrent', 'led-mask':'led-masks',
-  'bestsellers':'best-sellers', 'best-seller':'best-sellers', 'all-shop':'all', 'all-products':'all', 'shop':'all' };
+  'bestsellers':'best-sellers', 'best-seller':'best-sellers', 'bundles':'bundles-and-sets', 'bundles-sets':'bundles-and-sets', 'bundle':'bundles-and-sets', 'all-shop':'all', 'all-products':'all', 'shop':'all' };
 function applyCategoryParam(raw){
   var key = nkSlug(raw); key = CAT_SYNONYM[key] || key;
   state.alias = '';
